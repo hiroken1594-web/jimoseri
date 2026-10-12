@@ -1,0 +1,262 @@
+// AI地域商社 データモデル（02_spec.md 11-2 ＋ 03_spec_addendum.md）
+// User / Session / Account / Verification / RateLimit は認証ライブラリ Better Auth が使うテーブル。
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+  // Vercel Functions（ESM）で読み込めるよう、生成コード内の import に拡張子を付ける
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  RESTAURANT
+  PRODUCER
+  ADMIN
+}
+
+// 生産者・受渡場所の審査の状態
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  SUSPENDED
+}
+
+enum Unit {
+  KG
+  PIECE
+  BUNCH
+  BAG
+}
+
+enum Grade {
+  REGULAR
+  IRREGULAR
+}
+
+// 規格外理由。傷み・鮮度低下とは区別する（仕様4章）。
+enum IrregularReason {
+  SHAPE
+  SIZE
+  SURPLUS
+  OTHER
+}
+
+enum TimeMode {
+  DEADLINE
+  EXACT
+}
+
+// ---- 認証（Better Auth） ----
+
+model User {
+  id            String   @id
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // 役割は登録時にサーバーが確定し、本人は変更できない。ADMIN は管理用コマンドでのみ付与する。
+  role       Role?
+  // 登録フォームの入力値（役割の希望・店舗名／農園名・地域）。確定後は参照しない。
+  signupRole String?
+  orgName    String?
+  area       String?
+  // 運営者による利用停止
+  suspended  Boolean @default(false)
+
+  sessions   Session[]
+  accounts   Account[]
+  producer   Producer?
+  restaurant Restaurant?
+  aiUsages   AiUsage[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+// パスワードはここにハッシュ化して保存される（平文では保存しない）。
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+// メール確認・パスワード再設定用の一時的なトークン
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// ログイン試行などの回数制限
+model RateLimit {
+  id          String @id
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+
+  @@map("rateLimit")
+}
+
+// ---- 業務データ ----
+
+model Restaurant {
+  id      String   @id @default(cuid())
+  userId  String   @unique
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name    String
+  area    String
+  demands Demand[]
+}
+
+model Producer {
+  id             String       @id @default(cuid())
+  userId         String       @unique
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  farmName       String
+  area           String
+  // 登録直後は承認待ち。承認済みの生産者の出品だけが仕入れ案に使われる。
+  approvalStatus ReviewStatus @default(PENDING)
+  // 公開用の連絡先（任意）。show〜 が true の項目だけ飲食店に表示する。
+  publicPhone    String?
+  showPhone      Boolean      @default(false)
+  publicEmail    String?
+  showEmail      Boolean      @default(false)
+  contactNote    String?
+  createdAt      DateTime     @default(now())
+  listings       Listing[]
+  locations      PickupLocation[]
+}
+
+// 生産者が登録する受渡場所。同じ1件を選んだ出品どうしを「同じ場所」と判定する。
+model PickupLocation {
+  id           String       @id @default(cuid())
+  name         String
+  municipality String
+  address      String
+  note         String       @default("")
+  // 新しい場所は運営者の確認後に利用可能になる
+  status       ReviewStatus @default(PENDING)
+  createdById  String?
+  createdBy    Producer?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now())
+  listings     Listing[]
+
+  @@index([status])
+}
+
+model Item {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  aliases   String[]
+  sortOrder Int       @default(0)
+  listings  Listing[]
+  demands   Demand[]
+}
+
+model Listing {
+  id               String           @id @default(cuid())
+  producerId       String
+  producer         Producer         @relation(fields: [producerId], references: [id], onDelete: Cascade)
+  itemId           String
+  item             Item             @relation(fields: [itemId], references: [id])
+  variety          String?
+  grade            Grade            @default(REGULAR)
+  irregularReason  IrregularReason?
+  // 既存注文分を除いて今回販売に回せる量
+  quantity         Decimal          @db.Decimal(10, 3)
+  unit             Unit
+  // 税込単価（円／単位）
+  unitPriceTaxIncl Int
+  minQuantity      Decimal          @db.Decimal(10, 3)
+  stepQuantity     Decimal          @db.Decimal(10, 3)
+  pickupLocationId String
+  pickupLocation   PickupLocation   @relation(fields: [pickupLocationId], references: [id])
+  pickupStart      DateTime
+  pickupEnd        DateTime
+  // 生産者本人による公開／停止
+  isPublished      Boolean          @default(true)
+  // 運営者による停止
+  adminSuspended   Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([itemId, isPublished])
+  @@index([producerId])
+}
+
+// 飲食店が確定した仕入れ希望条件（履歴）。仕入れ案そのものは保存しない（仕様11-2）。
+model Demand {
+  id                 String     @id @default(cuid())
+  restaurantId       String
+  restaurant         Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  rawText            String?
+  itemId             String
+  item               Item       @relation(fields: [itemId], references: [id])
+  quantity           Decimal    @db.Decimal(10, 3)
+  unit               Unit
+  timeMode           TimeMode
+  // DEADLINE: 期限の日 / EXACT: 指定日（日本時間の YYYY-MM-DD）
+  date               String
+  time               String?
+  // 受取エリア（市区町村）。null は指定なし。
+  municipality       String?
+  budgetMaxYen       Int?
+  allowIrregular     Boolean
+  // 複数の場所での受け取りを許可するか（初期値オフ）
+  allowMultiLocation Boolean    @default(false)
+  createdAt          DateTime   @default(now())
+
+  @@index([restaurantId, createdAt])
+}
+
+// AI 抽出の利用回数（利用者ごと・日本時間の1日ごと）
+model AiUsage {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day    String
+  count  Int    @default(0)
+
+  @@unique([userId, day])
+}

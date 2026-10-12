@@ -1,0 +1,52 @@
+{
+  "name": "jimoseri",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "vercel-build": "prisma generate && prisma migrate deploy && tsx prisma/master.ts && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "e2e": "node scripts/e2e.mjs",
+    "postinstall": "prisma generate",
+    "env:init": "node scripts/init-env.mjs",
+    "db:up": "docker compose up -d --wait && docker compose exec -T db sh -c \"createdb -U jimoseri jimoseri_app 2>/dev/null || true\"",
+    "db:down": "docker compose down",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:master": "tsx prisma/master.ts",
+    "db:seed": "tsx prisma/seed.ts",
+    "admin:grant": "tsx scripts/grant-admin.ts"
+  },
+  "dependencies": {
+    "@google/genai": "^2.28.0",
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
+    "@vercel/functions": "^3.9.11",
+    "better-auth": "^1.7.7",
+    "nodemailer": "^10.1.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router-dom": "^7.18.4",
+    "zod": "^4.6.6"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/nodemailer": "^8.0.2",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "prisma": "^7.10.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.4"
+  }
+}
