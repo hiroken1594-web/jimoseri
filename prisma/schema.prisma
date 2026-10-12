@@ -1,5 +1,6 @@
 // AI地域商社 データモデル（02_spec.md 11-2 ＋ 03_spec_addendum.md）
 // User / Session / Account / Verification / RateLimit は認証ライブラリ Better Auth が使うテーブル。
+// ログインはユーザー名＋パスワード。メールアドレスは収集せず、メールも送らない。
 
 generator client {
   provider = "prisma-client"
@@ -55,6 +56,10 @@ enum TimeMode {
 model User {
   id            String   @id
   name          String
+  // ログインに使うユーザー名（半角英小文字・数字・_）
+  username        String? @unique
+  displayUsername String?
+  // Better Auth が内部で必要とする欄。実在しない形式の値（〜@users.jimoseri.invalid）を入れ、メールは送らない。
   email         String   @unique
   emailVerified Boolean  @default(false)
   image         String?
@@ -70,9 +75,10 @@ model User {
   // 運営者による利用停止
   suspended  Boolean @default(false)
 
-  sessions   Session[]
-  accounts   Account[]
-  producer   Producer?
+  sessions     Session[]
+  accounts     Account[]
+  recoveryCode RecoveryCode?
+  producer     Producer?
   restaurant Restaurant?
   aiUsages   AiUsage[]
 
@@ -115,7 +121,23 @@ model Account {
   @@map("account")
 }
 
-// メール確認・パスワード再設定用の一時的なトークン
+// パスワードを忘れたときのためのリカバリーコード。コードそのものは保存せず、ハッシュだけを保存する。
+// 利用者ごとに有効なコードは1つ。再発行すると、それまでのコードは無効になる。
+model RecoveryCode {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  createdAt DateTime @default(now())
+}
+
+// 新規登録・ログイン試行・リカバリーコードの回数制限。key は IP やユーザー名のハッシュ。
+model Throttle {
+  key         String   @id
+  count       Int
+  windowStart DateTime
+}
+
+// Better Auth が内部で使う一時的なトークンの置き場
 model Verification {
   id         String   @id
   identifier String

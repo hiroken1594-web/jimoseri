@@ -5,6 +5,7 @@ import type { ProfileInput } from '../../shared/schemas.js'
 import { api, ApiError, errorMessage } from '../api.js'
 import { authClient, authErrorMessage } from '../auth-client.js'
 import { Field, Notice } from '../components/ui.js'
+import { RecoveryCodeNotice } from './AuthPages.js'
 import { useSession } from '../session.js'
 
 const REVIEW: Record<ReviewStatus, { label: string; className: string; text: string }> = {
@@ -55,6 +56,7 @@ function ProfileSection({ user }: { user: SessionUser }) {
   return (
     <form className="card form" onSubmit={submit} noValidate>
       <h2 className="card-title">プロフィール</h2>
+      <p className="muted">ユーザー名：{user.username}（変更できません）</p>
       {p && (
         <div className="review-box">
           <p>
@@ -74,7 +76,7 @@ function ProfileSection({ user }: { user: SessionUser }) {
         <>
           <h3 className="sub-title">飲食店に公開する連絡先（任意）</h3>
           <p className="field-hint">
-            「公開する」をオンにした項目だけが、あなたの出品を含む仕入れ案を見ている飲食店に表示され、相談用のコピー文面にも入ります。ログイン用のメールアドレスは公開されません。
+            「公開する」をオンにした項目だけが、あなたの出品を含む仕入れ案を見ている飲食店に表示され、相談用のコピー文面にも入ります。ユーザー名は公開されません。
           </p>
           <Field label="電話番号" error={errors.publicPhone}>
             <input className="input" type="tel" inputMode="tel" autoComplete="tel" maxLength={20} value={publicPhone} placeholder="例：072-000-0000" onChange={(e) => setPublicPhone(e.target.value)} />
@@ -103,31 +105,46 @@ function ProfileSection({ user }: { user: SessionUser }) {
   )
 }
 
-function EmailSection({ user }: { user: SessionUser }) {
-  const [newEmail, setNewEmail] = useState('')
+function RecoverySection() {
+  const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState<Result>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [code, setCode] = useState<string | null>(null)
   const submit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail.trim())) return setResult({ kind: 'error', message: 'メールアドレスの形式を確認してください。' })
+    if (!password) return setError('確認のため、現在のパスワードを入力してください。')
+    if (!window.confirm('新しいリカバリーコードを発行すると、これまでのコードは使えなくなります。発行しますか？')) return
     setBusy(true)
-    setResult(null)
-    const { error } = await authClient.changeEmail({ newEmail: newEmail.trim(), callbackURL: '/account' })
-    setBusy(false)
-    if (error) return setResult({ kind: 'error', message: authErrorMessage(error) })
-    setNewEmail('')
-    setResult({ kind: 'success', message: '確認用のメールを送りました。メール内のリンクを開くと、変更が完了します。' })
+    setError(null)
+    try {
+      const result = await api<{ recoveryCode: string }>('/api/recovery', { method: 'PUT', body: { password } })
+      setPassword('')
+      setCode(result.recoveryCode)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+  if (code) {
+    return (
+      <div className="card form">
+        <RecoveryCodeNotice code={code} doneLabel="閉じる" onDone={() => setCode(null)} />
+      </div>
+    )
   }
   return (
     <form className="card form" onSubmit={submit} noValidate>
-      <h2 className="card-title">ログイン用メールアドレス</h2>
-      <p className="muted">現在：{user.email}</p>
-      <Field label="新しいメールアドレス" required>
-        <input className="input" type="email" inputMode="email" autoCapitalize="none" autoComplete="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+      <h2 className="card-title">リカバリーコード</h2>
+      <p className="field-hint">
+        パスワードを忘れたときに使うコードです。登録時に表示したコードを失くした場合や、他の人に見られた可能性がある場合は、新しく発行してください。これまでのコードは使えなくなります。
+      </p>
+      <Field label="現在のパスワード" required>
+        <input className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
       </Field>
-      {result && <Notice kind={result.kind}>{<p>{result.message}</p>}</Notice>}
+      {error && <Notice kind="error">{<p>{error}</p>}</Notice>}
       <button className="btn btn-block" type="submit" disabled={busy}>
-        {busy ? '送信中…' : '変更の確認メールを送る'}
+        {busy ? '発行中…' : '新しいリカバリーコードを発行する'}
       </button>
     </form>
   )
@@ -220,8 +237,8 @@ export function Account() {
     <>
       <h1 className="page-title">マイページ</h1>
       <ProfileSection user={user} />
-      <EmailSection user={user} />
       <PasswordSection />
+      <RecoverySection />
       <button
         className="btn btn-large btn-block"
         onClick={async () => {

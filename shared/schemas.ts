@@ -1,6 +1,6 @@
 // API の入力検証（サーバー側で必ず通す。画面側の検証は補助）。
 import { z } from 'zod'
-import { MAX_TEXT_LENGTH } from './limits.js'
+import { isValidUsername, MAX_TEXT_LENGTH, USERNAME_MAX, USERNAME_MIN } from './limits.js'
 
 export const unitSchema = z.enum(['KG', 'PIECE', 'BUNCH', 'BAG'])
 export const gradeSchema = z.enum(['REGULAR', 'IRREGULAR'])
@@ -22,7 +22,36 @@ const shortText = (label: string, max: number) =>
 const optionalText = (label: string, max: number) =>
   z.string().trim().max(max, `${label}は${max}文字以内で入力してください`).nullable()
 
-// プロフィールの変更。役割やメールアドレスはここでは変更できない。
+const usernameField = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .refine(isValidUsername, `ユーザー名は半角の英小文字・数字・_ で${USERNAME_MIN}〜${USERNAME_MAX}文字、英字で始めてください`)
+const passwordField = z.string().min(10, 'パスワードは10文字以上で入力してください').max(128, 'パスワードは128文字以内で入力してください')
+
+export const signupSchema = z.object({
+  username: usernameField,
+  password: passwordField,
+  role: z.enum(['RESTAURANT', 'PRODUCER'], { error: '利用者の種類（生産者・飲食店）を選択してください' }),
+  orgName: shortText('店舗名・農園名', 40),
+  area: shortText('地域', 40),
+  inviteCode: z.string().trim().max(100).optional(),
+  // 人には見えない入力欄（自動登録の検出用）
+  website: z.string().max(200).optional(),
+})
+
+// パスワードを忘れたとき：ユーザー名＋リカバリーコードで再設定する
+export const recoveryResetSchema = z.object({
+  username: z.string().trim().toLowerCase().min(1, 'ユーザー名を入力してください').max(40),
+  recoveryCode: z.string().trim().min(1, 'リカバリーコードを入力してください').max(60),
+  newPassword: passwordField,
+})
+
+export const recoveryReissueSchema = z.object({
+  password: z.string().min(1, '現在のパスワードを入力してください').max(128),
+})
+
+// プロフィールの変更。役割やユーザー名はここでは変更できない。
 export const profileSchema = z
   .object({
     orgName: shortText('店舗名・農園名', 40),
@@ -159,6 +188,7 @@ export const aiExtractionSchema = z.object({
   allowIrregular: z.boolean().nullable(),
 })
 
+export type SignupInput = z.infer<typeof signupSchema>
 export type ProfileInput = z.infer<typeof profileSchema>
 export type LocationCreateInput = z.infer<typeof locationCreateSchema>
 export type AdminActionInput = z.infer<typeof adminActionSchema>

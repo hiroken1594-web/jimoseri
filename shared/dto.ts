@@ -18,8 +18,8 @@ export interface ProducerProfile {
 export interface SessionUser {
   id: string
   role: Role
-  /** ログイン用メールアドレス（本人にだけ返す。他の利用者には公開しない） */
-  email: string
+  /** ログイン用のユーザー名（本人と運営者にだけ見える。他の利用者には公開しない） */
+  username: string
   /** 店舗名・農園名 */
   orgName: string
   area: string
@@ -145,7 +145,7 @@ export interface AdminOverview {
     id: string
     farmName: string
     area: string
-    email: string
+    username: string
     approvalStatus: ReviewStatus
     createdAtMs: number
     listingCount: number

@@ -2,7 +2,6 @@
 // テストデータを作り直すため、ローカルの DB（localhost）でしか動かない。
 // 実行: npm run dev を起動した状態で  npm run e2e
 import { execSync } from 'node:child_process'
-import { existsSync, readFileSync, rmSync } from 'node:fs'
 import pg from 'pg'
 
 process.loadEnvFile('.env.local')
@@ -43,93 +42,96 @@ function client() {
     }
     return { status: res.status, data: await res.json().catch(() => null), location: res.headers.get('location') }
   }
-  call.login = (email, password = PASSWORD) => call('/api/auth/sign-in/email', { body: { email, password } })
+  call.login = (username, password = PASSWORD) => call('/api/auth/sign-in/username', { body: { username, password } })
   return call
-}
-
-/** 開発用の送信箱から、その宛先への最新メールのリンクを取り出す */
-function lastMailLink(to) {
-  const lines = existsSync('.dev-mail/outbox.jsonl') ? readFileSync('.dev-mail/outbox.jsonl', 'utf8').trim().split('\n') : []
-  const mails = lines.map((l) => JSON.parse(l)).filter((m) => m.to === to)
-  return mails.at(-1)?.text.match(/https?:\/\/\S+/)?.[0] ?? null
-}
-const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-async function waitMailLink(to, previous = null) {
-  for (let i = 0; i < 30; i++) {
-    const link = lastMailLink(to)
-    if (link && link !== previous) return link
-    await wait(100)
-  }
-  return null
 }
 
 const jstDate = (offsetDays) => new Date(Date.now() + 9 * 3600_000 + offsetDays * 86400_000).toISOString().slice(0, 10)
 const DAY2 = jstDate(2)
 
 // ---- 準備：テストデータを作り直す ----
-rmSync('.dev-mail', { recursive: true, force: true })
 execSync('npx tsx prisma/seed.ts', { stdio: 'ignore' })
 const db = new pg.Client({ connectionString: process.env.DATABASE_URL })
 await db.connect()
 
 const anon = client()
-const run = Date.now()
-const newEmail = `e2e-farm-${run}@test.local`
-const newPassword = `first-${run}-pass`
+const run = Date.now() % 1_000_000
+const newName = `e2e_farm_${run}`
+const newPassword = `first-${run}-password`
+const CODE_FORMAT = /^([0-9A-HJKMNP-TV-Z]{4}-){4}[0-9A-HJKMNP-TV-Z]{4}$/
 
-console.log('新規登録・メール確認・ログイン')
-const signup = (over = {}) =>
-  client()('/api/auth/sign-up/email', {
-    body: { email: `x-${Math.random()}@test.local`, password: newPassword, name: 'x', signupRole: 'PRODUCER', orgName: 'E2E農園', area: '能勢町', ...over },
-  })
-check('役割に「運営者」を指定した登録は拒否', (await signup({ signupRole: 'ADMIN' })).status === 400)
-check('役割なしの登録は拒否', (await signup({ signupRole: undefined })).status === 400)
+console.log('新規登録・ログイン（ユーザー名＋パスワード）')
+const signupBody = (over = {}) => ({ username: `x_${Math.floor(Math.random() * 1e9)}`, password: newPassword, role: 'PRODUCER', orgName: 'E2E農園', area: '能勢町', ...over })
+const signup = (over) => client()('/api/signup', { body: signupBody(over) })
+check('役割に「運営者」を指定した登録は拒否', (await signup({ role: 'ADMIN' })).status === 400)
+check('役割なしの登録は拒否', (await signup({ role: undefined })).status === 400)
 check('短いパスワードは拒否', (await signup({ password: 'short' })).status === 400)
-check('role を直接指定しても拒否または無視される', [200, 400].includes((await signup({ email: `role-${run}@test.local`, role: 'ADMIN' })).status))
-const sneaky = await db.query('select role from "user" where email = $1', [`role-${run}@test.local`])
-check('登録時に role=ADMIN を紛れ込ませても運営者にならない', sneaky.rows.every((r) => r.role !== 'ADMIN'))
+check('短すぎるユーザー名は拒否', (await signup({ username: 'ab' })).status === 400)
+check('記号を含むユーザー名は拒否', (await signup({ username: 'bad name!' })).status === 400)
+check('なりすましに使われやすい名前（admin）は拒否', (await signup({ username: 'admin' })).status === 400)
+check('自動登録の検出欄が埋まっている登録は拒否', (await signup({ website: 'http://spam.example' })).status === 400)
+let r = await anon('/api/auth/sign-up/email', { body: { email: 'direct@example.invalid', password: newPassword, name: 'x', username: 'direct_user', signupRole: 'PRODUCER', orgName: 'x', area: 'x', role: 'ADMIN' } })
+check('認証ライブラリの登録APIを直接呼ぶことはできない', r.status === 404, `${r.status}`)
+check('メール用のログイン・再設定APIは使えない', (await anon('/api/auth/sign-in/email', { body: { email: 'a@b.invalid', password: newPassword } })).status === 404 && (await anon('/api/auth/request-password-reset', { body: { email: 'a@b.invalid' } })).status === 404)
+check('直接呼び出しでアカウントは作られていない', (await db.query('select count(*)::int as n from "user" where username = $1', ['direct_user'])).rows[0].n === 0)
 
 const newbie = client()
-let r = await newbie('/api/auth/sign-up/email', {
-  body: { email: newEmail, password: newPassword, name: 'E2E新規農園', signupRole: 'PRODUCER', orgName: 'E2E新規農園', area: '能勢町' },
-})
-check('生産者として新規登録できる', r.status === 200, JSON.stringify(r.data))
-check('登録直後はログイン状態にならない', (await newbie('/api/me')).data.user === null)
-r = await newbie.login(newEmail, newPassword)
-check('メール確認前はログインできない', r.status === 403, `${r.status}`)
-const verifyLink = await waitMailLink(newEmail)
-check('確認用メールが送られる', Boolean(verifyLink))
-r = await newbie(verifyLink)
-check('確認リンクを開くとログイン状態になる', r.status === 302 && (await newbie('/api/me')).data.user?.role === 'PRODUCER')
+r = await newbie('/api/signup', { body: signupBody({ username: newName.toUpperCase(), orgName: 'E2E新規農園' }) })
+const firstCode = r.data?.recoveryCode
+check('生産者として新規登録できる（メールアドレス不要）', r.status === 201, JSON.stringify(r.data))
+check('リカバリーコードが一度だけ返される（20文字・安全な乱数）', CODE_FORMAT.test(firstCode ?? ''), firstCode)
 let me = (await newbie('/api/me')).data.user
+check('登録するとログイン状態になり、役割が確定している', me?.role === 'PRODUCER' && me.username === newName)
 check('登録直後の生産者は承認待ち', me.producer?.approvalStatus === 'PENDING' && me.orgName === 'E2E新規農園')
+check('同じユーザー名では登録できない', (await signup({ username: newName })).status === 409)
 
-const stored = await db.query('select a.password from account a join "user" u on u.id = a."userId" where u.email = $1', [newEmail])
+const stored = await db.query('select a.password, u.email, r."codeHash" from "user" u join account a on a."userId" = u.id join "RecoveryCode" r on r."userId" = u.id where u.username = $1', [newName])
 check('パスワードは平文で保存されていない', stored.rows.length === 1 && !stored.rows[0].password.includes(newPassword) && stored.rows[0].password.length > 60)
+check('リカバリーコードはハッシュだけが保存されている', !stored.rows[0].codeHash.includes(firstCode.replaceAll('-', '')) && /^[0-9a-f]{64}$/.test(stored.rows[0].codeHash))
+check('実在するメールアドレスは保存されていない', stored.rows[0].email.endsWith('.invalid'))
+check('登録の応答・本人情報にリカバリーコードのハッシュやパスワードが含まれない', !JSON.stringify(me).includes(stored.rows[0].codeHash) && !('password' in me))
 
-await newbie('/api/auth/update-user', { body: { role: 'ADMIN', suspended: false, signupRole: 'ADMIN' } })
-check('自分の役割を書き換えられない', (await newbie('/api/me')).data.user.role === 'PRODUCER')
+await newbie('/api/auth/update-user', { body: { role: 'ADMIN', suspended: false, signupRole: 'ADMIN', username: 'hijacked_name' } })
+me = (await newbie('/api/me')).data.user
+check('自分の役割・ユーザー名を書き換えられない', me.role === 'PRODUCER' && me.username === newName)
 r = await newbie('/api/me', { method: 'PATCH', body: { orgName: 'E2E新規農園', area: '能勢町', role: 'ADMIN', approvalStatus: 'APPROVED' } })
 check('プロフィール変更で役割・審査状態を書き換えられない', r.data.user.role === 'PRODUCER' && r.data.user.producer.approvalStatus === 'PENDING')
 
 await newbie('/api/auth/sign-out', { body: {} })
 check('ログアウトできる', (await newbie('/api/me')).data.user === null)
-check('間違ったパスワードではログインできない', (await newbie.login(newEmail, 'wrong-password-123')).status === 401)
+r = await newbie.login(newName, 'wrong-password-123')
+check('間違ったパスワードではログインできない', r.status === 401)
+const noUser = await client().login('no_such_user_zz', 'wrong-password-123')
+check('存在しないユーザー名でも同じ応答を返す（登録の有無を漏らさない）', noUser.status === 401 && noUser.data?.code === r.data?.code)
+check('正しいパスワードでログインできる', (await newbie.login(newName, newPassword)).status === 200)
 
-console.log('パスワード再設定')
-await anon('/api/auth/request-password-reset', { body: { email: newEmail, redirectTo: '/reset-password' } })
-const resetLink = await waitMailLink(newEmail, verifyLink)
-r = await anon(resetLink)
-const token = r.location ? new URL(r.location, BASE).searchParams.get('token') : null
-check('再設定用メールのリンクからトークンを受け取れる', Boolean(token))
-const resetPassword = `second-${run}-pass`
-r = await anon('/api/auth/reset-password', { body: { newPassword: resetPassword, token } })
-check('新しいパスワードを設定できる', r.status === 200)
-check('古いパスワードではログインできない', (await client().login(newEmail, newPassword)).status === 401)
-check('新しいパスワードでログインできる', (await newbie.login(newEmail, resetPassword)).status === 200)
-check('使用済みのトークンは使えない', (await anon('/api/auth/reset-password', { body: { newPassword: 'another-pass-123', token } })).status === 400)
-r = await anon('/api/auth/request-password-reset', { body: { email: 'nobody@test.local', redirectTo: '/reset-password' } })
-check('未登録のメールアドレスでも同じ応答を返す（登録の有無を漏らさない）', r.status === 200)
+console.log('リカバリーコードによるパスワード再設定')
+const otherDevice = client()
+await otherDevice.login(newName, newPassword)
+const recover = (body) => client()('/api/recovery', { body })
+const resetPassword = `second-${run}-password`
+const wrongCode = await recover({ username: newName, recoveryCode: 'AAAA-BBBB-CCCC-DDDD-EEEE', newPassword: resetPassword })
+check('間違ったコードでは再設定できない', wrongCode.status === 400)
+const wrongUser = await recover({ username: 'no_such_user_zz', recoveryCode: firstCode, newPassword: resetPassword })
+check('ユーザー名が違う場合も同じ応答を返す', wrongUser.status === 400 && wrongUser.data.error.message === wrongCode.data.error.message)
+check('短いパスワードには再設定できない', (await recover({ username: newName, recoveryCode: firstCode, newPassword: 'short' })).status === 400)
+// 入力の揺れ（小文字・ハイフンなし）も受け付ける
+r = await recover({ username: newName, recoveryCode: firstCode.toLowerCase().replaceAll('-', ' '), newPassword: resetPassword })
+const secondCode = r.data?.recoveryCode
+check('正しいコードで新しいパスワードを設定できる', r.status === 200)
+check('再設定すると新しいコードが発行される', CODE_FORMAT.test(secondCode ?? '') && secondCode !== firstCode)
+check('古いパスワードではログインできない', (await client().login(newName, newPassword)).status === 401)
+check('新しいパスワードでログインできる', (await newbie.login(newName, resetPassword)).status === 200)
+check('再設定で他の端末のログインが無効になる', (await otherDevice('/api/me')).data.user === null)
+check('使用済みのコードは使えない', (await recover({ username: newName, recoveryCode: firstCode, newPassword: 'another-password-123' })).status === 400)
+
+check('コードの再発行には現在のパスワードが必要', (await newbie('/api/recovery', { method: 'PUT', body: { password: 'wrong-password-123' } })).status === 400)
+check('未ログインではコードを再発行できない', (await anon('/api/recovery', { method: 'PUT', body: { password: resetPassword } })).status === 401)
+r = await newbie('/api/recovery', { method: 'PUT', body: { password: resetPassword } })
+const thirdCode = r.data?.recoveryCode
+check('ログイン中の本人はコードを再発行できる', r.status === 200 && CODE_FORMAT.test(thirdCode ?? '') && thirdCode !== secondCode)
+check('再発行すると、それまでのコードは無効になる', (await recover({ username: newName, recoveryCode: secondCode, newPassword: 'another-password-123' })).status === 400)
+check('有効なコードは利用者ごとに1つだけ', (await db.query('select count(*)::int as n from "RecoveryCode" r join "user" u on u.id = r."userId" where u.username = $1', [newName])).rows[0].n === 1)
 
 console.log('権限')
 const tomato = (await anon('/api/master')).data.items.find((i) => i.name === 'トマト')
@@ -159,9 +161,9 @@ for (const [name, path, body] of [
 }
 
 const [restaurant, restaurant2, farmA, farmB, farmC, admin] = await Promise.all(
-  ['restaurant', 'restaurant2', 'farm-a', 'farm-b', 'farm-c', 'admin'].map(async (name) => {
+  ['restaurant1', 'restaurant2', 'farm_a', 'farm_b', 'farm_c', 'unei_test'].map(async (name) => {
     const c = client()
-    const res = await c.login(`${name}@test.local`)
+    const res = await c.login(name)
     if (res.status !== 200) throw new Error(`login failed: ${name} ${res.status}`)
     return c
   }),
@@ -188,9 +190,9 @@ check('成功：10kg・5,350円・条件達成', p.result.status === 'MATCHED' &
 const contactIds = Object.keys(p.contacts)
 check(
   '連絡先：公開を選んだ項目だけを返す（Aの電話のみ。Aのメール・B・Cは含まれない）',
-  contactIds.length === 1 && p.contacts[contactIds[0]].phone === '090-0000-0000' && !('email' in p.contacts[contactIds[0]]) && !JSON.stringify(p).includes('farm-a-public@test.local'),
+  contactIds.length === 1 && p.contacts[contactIds[0]].phone === '090-0000-0000' && !('email' in p.contacts[contactIds[0]]) && !JSON.stringify(p).includes('farm-a-public@example.invalid'),
 )
-check('応答に生産者のログイン用メールアドレスが含まれない', !JSON.stringify(p).includes('@test.local'))
+check('応答に生産者のユーザー名や内部用の値が含まれない', !/farm_[abc]|jimoseri\.invalid/.test(JSON.stringify(p)))
 const firstFingerprint = p.fingerprint
 
 p = await plan({ allowIrregular: false })
@@ -202,11 +204,11 @@ check('販売刻み：9.5kg希望でも0.5kgを割り当てない', p.result.bes
 
 r = await farmC(`/api/listings?id=${cTomato.id}`, { method: 'PATCH', body: { quantity: 1 } })
 check('生産者の更新：数量だけ送って更新できる', r.status === 200 && r.data.listing.quantityMilli === 1000 && r.data.listing.unitPriceYen === 350)
-r = await restaurant('/api/plan-check', { body: { itemId: tomato.id, fingerprint: firstFingerprint } })
+r = await restaurant('/api/plan', { method: 'PUT', body: { itemId: tomato.id, fingerprint: firstFingerprint } })
 check('在庫変更：古い案は無効と判定される', r.data.fresh === false)
 p = await plan()
 check('在庫変更：再計算で9kg・1kg不足', p.result.status === 'SHORTAGE' && p.result.best.plan.totalMilli === 9000 && p.result.best.shortageMilli === 1000)
-check('再計算後の案は有効と判定される', (await restaurant('/api/plan-check', { body: { itemId: tomato.id, fingerprint: p.fingerprint } })).data.fresh === true)
+check('再計算後の案は有効と判定される', (await restaurant('/api/plan', { method: 'PUT', body: { itemId: tomato.id, fingerprint: p.fingerprint } })).data.fresh === true)
 await farmC(`/api/listings?id=${cTomato.id}`, { method: 'PATCH', body: { quantity: 2 } })
 
 await farmB(`/api/listings?id=${bTomato.id}`, { method: 'PATCH', body: { isPublished: false } })
@@ -275,7 +277,7 @@ check('生産者を承認しても、場所が確認待ちなら仕入れ案に�
 await admin('/api/admin', { body: { target: 'location', id: newPlace.id, action: 'approve' } })
 p = await plan()
 check('生産者と場所の両方が承認されると、出品が自動的に対象になる', p.result.best.plan.producerCount === 1 && p.result.best.plan.totalYen === 1000, JSON.stringify(p.result.best?.plan))
-check('承認による変化で、古い案は無効と判定される', (await restaurant('/api/plan-check', { body: { itemId: tomato.id, fingerprint: stableFingerprint } })).data.fresh === false)
+check('承認による変化で、古い案は無効と判定される', (await restaurant('/api/plan', { method: 'PUT', body: { itemId: tomato.id, fingerprint: stableFingerprint } })).data.fresh === false)
 check('承認後は出品の対象外理由がなくなる', (await newbie('/api/listings')).data.listings[0].blockers.length === 0)
 await admin('/api/admin', { body: { target: 'listing', id: newListing.id, action: 'suspend' } })
 check('運営者が停止した出品は仕入れ案に出ない', (await plan()).result.best.plan.producerCount === 3)
@@ -285,12 +287,12 @@ check('停止された生産者の出品は仕入れ案に出ない', (await pla
 await admin('/api/admin', { body: { target: 'producer', id: newProducer.id, action: 'approve' } })
 
 console.log('連絡先・履歴・退会')
-r = await farmA('/api/me', { method: 'PATCH', body: { orgName: 'テストA農園', area: '能勢町', publicPhone: '090-0000-0000', showPhone: false, publicEmail: 'farm-a-public@test.local', showEmail: true, contactNote: null } })
+r = await farmA('/api/me', { method: 'PATCH', body: { orgName: 'テストA農園', area: '能勢町', publicPhone: '090-0000-0000', showPhone: false, publicEmail: 'farm-a-public@example.invalid', showEmail: true, contactNote: null } })
 check('生産者は公開する連絡先を変更できる', r.status === 200 && r.data.user.producer.showEmail === true)
 await admin('/api/admin', { body: { target: 'listing', id: newListing.id, action: 'suspend' } })
 p = await plan()
 const contactA = Object.values(p.contacts)[0]
-check('公開設定の変更が反映される（メールのみ表示、電話は非表示）', contactA?.email === 'farm-a-public@test.local' && !('phone' in contactA))
+check('公開設定の変更が反映される（メールのみ表示、電話は非表示）', contactA?.email === 'farm-a-public@example.invalid' && !('phone' in contactA))
 check('公開する連絡先が空のまま「公開する」にはできない', (await farmB('/api/me', { method: 'PATCH', body: { orgName: 'テストB農園', area: '豊能町', showPhone: true } })).status === 400)
 
 r = await restaurant('/api/plan', { body: demand({ save: true, rawText: '明後日までにトマトを10kg' }) })
@@ -306,10 +308,11 @@ check('退会前：新しい生産者の出品が仕入れ案に使われてい�
 check('退会にはパスワードが必要', (await newbie('/api/auth/delete-user', { body: { password: 'wrong-password-123' } })).status !== 200)
 r = await newbie('/api/auth/delete-user', { body: { password: resetPassword } })
 check('退会できる', r.status === 200, JSON.stringify(r.data))
-const gone = await db.query('select count(*)::int as n from "user" where email = $1', [newEmail])
+const gone = await db.query('select count(*)::int as n from "user" where username = $1', [newName])
 const orphan = await db.query('select count(*)::int as n from "Listing" where id = $1', [newListing.id])
 check('退会でアカウントと出品がDBから消える', gone.rows[0].n === 0 && orphan.rows[0].n === 0)
-check('退会後はログインできない', (await client().login(newEmail, resetPassword)).status === 401)
+check('退会後はログインできない', (await client().login(newName, resetPassword)).status === 401)
+check('退会でリカバリーコードも消える', (await db.query('select count(*)::int as n from "RecoveryCode" r where not exists (select 1 from "user" u where u.id = r."userId")')).rows[0].n === 0 && (await db.query('select count(*)::int as n from "RecoveryCode" r join "user" u on u.id = r."userId" where u.username = $1', [newName])).rows[0].n === 0)
 check('退会後は出品が仕入れ案から消える', (await plan()).result.best.plan.producerCount === 3)
 r = await farmA(`/api/listings?id=${aTomato.id}`, { method: 'DELETE' })
 check('自分の出品を削除できる', r.status === 200 && (await plan()).result.best.plan.totalMilli === 5000)
@@ -334,6 +337,20 @@ if (!(await anon('/api/master')).data.aiEnabled) {
     JSON.stringify(r.data),
   )
 }
+
+console.log('総当たり・自動登録への対策')
+await db.query('delete from "Throttle"')
+let statuses = []
+for (let i = 0; i < 6; i++) statuses.push((await recover({ username: 'ghost_user_zz', recoveryCode: 'AAAA-BBBB-CCCC-DDDD-EEEE', newPassword: 'whatever-password-1' })).status)
+check('リカバリーコードの試行は、同じユーザー名につき回数が制限される', statuses.slice(0, 5).every((x) => x === 400) && statuses[5] === 429, statuses.join(','))
+statuses = []
+for (let i = 0; i < 11; i++) statuses.push((await client().login('restaurant2', 'wrong-password-123')).status)
+check('ログインの試行は、同じユーザー名につき回数が制限される', statuses.slice(0, 10).every((x) => x === 401) && statuses[10] === 429, statuses.join(','))
+check('制限中は正しいパスワードでもログインできない（総当たりの成功を防ぐ）', (await client().login('restaurant2')).status === 429)
+check('他のユーザー名のログインには影響しない', (await client().login('restaurant1')).status === 200)
+statuses = []
+for (let i = 0; i < 6; i++) statuses.push((await signup({})).status)
+check('同じ接続元からの新規登録は回数が制限される', statuses.slice(0, 5).every((x) => x === 201) && statuses[5] === 429, statuses.join(','))
 
 await db.end()
 execSync('npx tsx prisma/seed.ts', { stdio: 'ignore' })

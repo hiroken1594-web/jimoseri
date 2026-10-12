@@ -90,8 +90,8 @@ export function Admin() {
                   <dd>{p.area}</dd>
                 </div>
                 <div>
-                  <dt>メール</dt>
-                  <dd>{p.email}</dd>
+                  <dt>ユーザー名</dt>
+                  <dd>{p.username}</dd>
                 </div>
                 <div>
                   <dt>登録</dt>

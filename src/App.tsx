@@ -4,7 +4,7 @@ import type { Role } from '../shared/dto.js'
 import { Layout, PublicLayout } from './components/Layout.js'
 import { Account } from './pages/Account.js'
 import { Admin } from './pages/Admin.js'
-import { ForgotPassword, Login, ResetPassword, Signup } from './pages/AuthPages.js'
+import { ForgotPassword, Login, Signup } from './pages/AuthPages.js'
 import { Landing } from './pages/Landing.js'
 import { Privacy, Terms } from './pages/Legal.js'
 import { ProducerForm } from './pages/ProducerForm.js'
@@ -35,9 +35,8 @@ export function App() {
     <Routes>
       <Route path="/" element={<GuestOnly><Landing /></GuestOnly>} />
       <Route path="/login" element={<GuestOnly><Login /></GuestOnly>} />
-      <Route path="/signup" element={<GuestOnly><Signup /></GuestOnly>} />
-      <Route path="/forgot-password" element={<GuestOnly><ForgotPassword /></GuestOnly>} />
-      <Route path="/reset-password" element={<PublicLayout><ResetPassword /></PublicLayout>} />
+      <Route path="/signup" element={<PublicLayout><Signup /></PublicLayout>} />
+      <Route path="/forgot-password" element={<PublicLayout><ForgotPassword /></PublicLayout>} />
       <Route path="/terms" element={<PublicLayout><Terms /></PublicLayout>} />
       <Route path="/privacy" element={<PublicLayout><Privacy /></PublicLayout>} />
 

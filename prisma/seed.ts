@@ -21,53 +21,51 @@ if (!password) {
 }
 
 const { getPrisma } = await import('../api/_lib/prisma.js')
-const { getAuth } = await import('../api/_lib/auth-server.js')
+const { registerAccount } = await import('../api/_lib/accounts.js')
 const { addDaysJst, jstDateString, jstToMs } = await import('../shared/time.js')
 const prisma = getPrisma()
-const auth = getAuth()
 
 const ACCOUNTS = [
-  { email: 'admin@test.local', role: 'RESTAURANT', orgName: '運営（テスト）', area: '大阪市' },
-  { email: 'restaurant@test.local', role: 'RESTAURANT', orgName: 'テスト小料理店', area: '大阪市福島区' },
-  { email: 'restaurant2@test.local', role: 'RESTAURANT', orgName: 'テスト食堂', area: '大阪市北区' },
-  { email: 'farm-a@test.local', role: 'PRODUCER', orgName: 'テストA農園', area: '能勢町' },
-  { email: 'farm-b@test.local', role: 'PRODUCER', orgName: 'テストB農園', area: '豊能町' },
-  { email: 'farm-c@test.local', role: 'PRODUCER', orgName: 'テストC農園', area: '能勢町' },
-]
+  { username: 'unei_test', role: 'RESTAURANT', orgName: '運営（テスト）', area: '大阪市' },
+  { username: 'restaurant1', role: 'RESTAURANT', orgName: 'テスト小料理店', area: '大阪市福島区' },
+  { username: 'restaurant2', role: 'RESTAURANT', orgName: 'テスト食堂', area: '大阪市北区' },
+  { username: 'farm_a', role: 'PRODUCER', orgName: 'テストA農園', area: '能勢町' },
+  { username: 'farm_b', role: 'PRODUCER', orgName: 'テストB農園', area: '豊能町' },
+  { username: 'farm_c', role: 'PRODUCER', orgName: 'テストC農園', area: '能勢町' },
+] as const
 
-// テスト用アカウントの出品・履歴・場所を消して作り直す（ローカル DB のみ）
+// ローカル DB の内容を消して作り直す（品目マスタは残す）
 await prisma.listing.deleteMany()
 await prisma.demand.deleteMany()
 await prisma.pickupLocation.deleteMany()
-await prisma.user.deleteMany({ where: { email: { endsWith: '@test.local' } } })
+await prisma.user.deleteMany()
+await prisma.throttle.deleteMany()
 
 for (const a of ACCOUNTS) {
   // 実際の登録と同じ処理を通す（パスワードはハッシュ化されて保存される）
-  await auth.api.signUpEmail({
-    body: { email: a.email, password, name: a.orgName, signupRole: a.role, orgName: a.orgName, area: a.area },
-  })
-  await prisma.user.update({ where: { email: a.email }, data: { emailVerified: true } })
+  const res = await registerAccount({ ...a, password })
+  if (!res.ok) throw new Error(`テスト用アカウントを作成できませんでした: ${a.username} ${await res.text()}`)
 }
-await prisma.user.update({ where: { email: 'admin@test.local' }, data: { role: 'ADMIN' } })
+await prisma.user.update({ where: { username: 'unei_test' }, data: { role: 'ADMIN' } })
 
 const producerIds: Record<string, string> = {}
 for (const a of ACCOUNTS.filter((x) => x.role === 'PRODUCER')) {
-  const user = await prisma.user.findUniqueOrThrow({ where: { email: a.email } })
+  const user = await prisma.user.findUniqueOrThrow({ where: { username: a.username } })
   const producer = await prisma.producer.create({
     data: { userId: user.id, farmName: a.orgName, area: a.area, approvalStatus: 'APPROVED' },
   })
-  producerIds[a.email] = producer.id
+  producerIds[a.username] = producer.id
 }
 await prisma.producer.update({
-  where: { id: producerIds['farm-a@test.local'] },
-  data: { publicPhone: '090-0000-0000', showPhone: true, publicEmail: 'farm-a-public@test.local', showEmail: false, contactNote: '平日9〜17時（テスト）' },
+  where: { id: producerIds.farm_a },
+  data: { publicPhone: '090-0000-0000', showPhone: true, publicEmail: 'farm-a-public@example.invalid', showEmail: false, contactNote: '平日9〜17時（テスト）' },
 })
 
 const placeP = await prisma.pickupLocation.create({
-  data: { name: 'テスト受渡場所P', municipality: '能勢町', address: '（架空）能勢町テスト1-1 直売所前', status: 'APPROVED', createdById: producerIds['farm-a@test.local'] },
+  data: { name: 'テスト受渡場所P', municipality: '能勢町', address: '（架空）能勢町テスト1-1 直売所前', status: 'APPROVED', createdById: producerIds.farm_a },
 })
 await prisma.pickupLocation.create({
-  data: { name: 'テスト受渡場所Q', municipality: '豊能町', address: '（架空）豊能町テスト2-2 集荷場', status: 'APPROVED', createdById: producerIds['farm-b@test.local'] },
+  data: { name: 'テスト受渡場所Q', municipality: '豊能町', address: '（架空）豊能町テスト2-2 集荷場', status: 'APPROVED', createdById: producerIds.farm_b },
 })
 
 const item = async (name: string) => (await prisma.item.findUniqueOrThrow({ where: { name } })).id
@@ -83,10 +81,10 @@ const base = {
 // 仕様 8章の例：A 5kg・600円／B 3kg・550円／C 規格外 2kg・350円
 await prisma.listing.createMany({
   data: [
-    { ...base, producerId: producerIds['farm-a@test.local'], itemId: await item('トマト'), quantity: 5, unitPriceTaxIncl: 600 },
-    { ...base, producerId: producerIds['farm-b@test.local'], itemId: await item('トマト'), quantity: 3, unitPriceTaxIncl: 550 },
-    { ...base, producerId: producerIds['farm-c@test.local'], itemId: await item('トマト'), quantity: 2, unitPriceTaxIncl: 350, grade: 'IRREGULAR', irregularReason: 'SHAPE' },
-    { ...base, producerId: producerIds['farm-a@test.local'], itemId: await item('なす'), quantity: 4, unitPriceTaxIncl: 480 },
+    { ...base, producerId: producerIds.farm_a, itemId: await item('トマト'), quantity: 5, unitPriceTaxIncl: 600 },
+    { ...base, producerId: producerIds.farm_b, itemId: await item('トマト'), quantity: 3, unitPriceTaxIncl: 550 },
+    { ...base, producerId: producerIds.farm_c, itemId: await item('トマト'), quantity: 2, unitPriceTaxIncl: 350, grade: 'IRREGULAR', irregularReason: 'SHAPE' },
+    { ...base, producerId: producerIds.farm_a, itemId: await item('なす'), quantity: 4, unitPriceTaxIncl: 480 },
   ],
 })
 

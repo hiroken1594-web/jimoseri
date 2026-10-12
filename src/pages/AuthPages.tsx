@@ -1,12 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { isValidUsername, USERNAME_MAX, USERNAME_MIN } from '../../shared/limits.js'
+import type { SignupInput } from '../../shared/schemas.js'
+import { api, ApiError, errorMessage } from '../api.js'
 import { authClient, authErrorMessage } from '../auth-client.js'
 import { Choice, Field, Notice } from '../components/ui.js'
 import { homePath, useSession } from '../session.js'
 
-const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
-
-function PasswordInput({
+export function PasswordInput({
   value,
   onChange,
   autoComplete,
@@ -35,40 +36,50 @@ function PasswordInput({
   )
 }
 
-/** 確認メールを送ったあとの案内。再送もできる。 */
-function CheckEmail({ email }: { email: string }) {
-  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
-  const [message, setMessage] = useState('')
-  const resend = async () => {
-    setState('sending')
-    const { error } = await authClient.sendVerificationEmail({ email, callbackURL: '/' })
-    if (error) {
-      setMessage(authErrorMessage(error))
-      setState('error')
-    } else setState('sent')
+/**
+ * リカバリーコードの表示。発行した直後に一度だけ表示し、控えたことを確認してから先へ進める。
+ * サーバーにはコードそのものを保存していないため、後から表示し直すことはできない。
+ */
+export function RecoveryCodeNotice({ code, onDone, doneLabel }: { code: string; onDone: () => void; doneLabel: string }) {
+  const [kept, setKept] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopied(true)
+    } catch {
+      setCopied(false)
+    }
   }
   return (
     <>
-      <h1 className="page-title">メールをご確認ください</h1>
-      <Notice kind="success" title="確認用のメールを送りました">
+      <h1 className="page-title">リカバリーコードを控えてください</h1>
+      <Notice kind="warn" title="このコードは、いま一度だけ表示されます">
         <p>
-          <strong>{email}</strong> 宛てのメールにあるリンクを開くと、登録が完了してログインできます（有効期限：1時間）。
+          パスワードを忘れたときに、このコードで新しいパスワードを設定できます。このサービスはメールを使わないため、
+          <strong>パスワードとこのコードの両方を失くすと、ご自身ではログインできなくなります。</strong>
         </p>
       </Notice>
+      <p className="recovery-code" aria-label="リカバリーコード">
+        {code}
+      </p>
+      <button className="btn btn-block" onClick={copy}>
+        {copied ? 'コピーしました' : 'コードをコピー'}
+      </button>
       <ul className="help-list">
-        <li>数分待っても届かない場合は、迷惑メールのフォルダもご確認ください。</li>
-        <li>既に登録済みのメールアドレスの場合、確認メールは届きません。ログインをお試しください。</li>
+        <li>紙に書く、パスワード管理アプリに保存するなど、他の人に見られない場所に保管してください。</li>
+        <li>コードを知っている人は、あなたのパスワードを変更できます。人に教えないでください。</li>
+        <li>マイページから、いつでも新しいコードに作り直せます（古いコードは使えなくなります）。</li>
       </ul>
-      {state === 'sent' && <Notice kind="info">{<p>もう一度送りました。</p>}</Notice>}
-      {state === 'error' && <Notice kind="error">{<p>{message}</p>}</Notice>}
-      <div className="actions">
-        <button className="btn btn-large" onClick={resend} disabled={state === 'sending'}>
-          {state === 'sending' ? '送信中…' : '確認メールをもう一度送る'}
-        </button>
-        <Link className="btn btn-large btn-quiet" to="/login">
-          ログイン画面へ
-        </Link>
-      </div>
+      <label className="check check-box">
+        <input type="checkbox" checked={kept} onChange={(e) => setKept(e.target.checked)} />
+        <span>
+          <strong>リカバリーコードを控えました</strong>
+        </span>
+      </label>
+      <button className="btn btn-primary btn-large" disabled={!kept} onClick={onDone}>
+        {doneLabel}
+      </button>
     </>
   )
 }
@@ -76,22 +87,19 @@ function CheckEmail({ email }: { email: string }) {
 export function Login() {
   const { refresh } = useSession()
   const navigate = useNavigate()
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [unverified, setUnverified] = useState(false)
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!isEmail(email.trim()) || !password) return setError('メールアドレスとパスワードを入力してください。')
+    if (!username.trim() || !password) return setError('ユーザー名とパスワードを入力してください。')
     setBusy(true)
     setError(null)
-    const { error: authError } = await authClient.signIn.email({ email: email.trim(), password })
+    const { error: authError } = await authClient.signIn.username({ username: username.trim().toLowerCase(), password })
     if (authError) {
       setBusy(false)
-      // 未確認の場合は、サーバーが確認メールを送り直している
-      if (authError.code === 'EMAIL_NOT_VERIFIED') return setUnverified(true)
       return setError(authErrorMessage(authError))
     }
     try {
@@ -105,14 +113,12 @@ export function Login() {
     }
   }
 
-  if (unverified) return <CheckEmail email={email.trim()} />
-
   return (
     <form className="form" onSubmit={submit} noValidate>
       <h1 className="page-title">ログイン</h1>
       {error && <Notice kind="error">{<p>{error}</p>}</Notice>}
-      <Field label="メールアドレス" required>
-        <input className="input" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" value={email} onChange={(e) => setEmail(e.target.value)} />
+      <Field label="ユーザー名" required>
+        <input className="input" type="text" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={username} onChange={(e) => setUsername(e.target.value)} />
       </Field>
       <Field label="パスワード" required>
         <PasswordInput label="パスワード" value={password} onChange={setPassword} autoComplete="current-password" />
@@ -131,22 +137,37 @@ export function Login() {
 }
 
 export function Signup() {
-  const { master } = useSession()
+  const { master, refresh } = useSession()
+  const navigate = useNavigate()
   const [role, setRole] = useState<'RESTAURANT' | 'PRODUCER' | null>(null)
   const [orgName, setOrgName] = useState('')
   const [area, setArea] = useState('')
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [invite, setInvite] = useState('')
+  const [website, setWebsite] = useState('')
   const [agree, setAgree] = useState(false)
   const [busy, setBusy] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [problem, setProblem] = useState<string | null>(null)
-  const [done, setDone] = useState(false)
+  const [recoveryCode, setRecoveryCode] = useState<string | null>(null)
 
   // 入力し直したら、前回のエラー表示を消す
-  useEffect(() => setErrors({}), [role, orgName, area, email, password, invite, agree])
+  useEffect(() => setErrors({}), [role, orgName, area, username, password, invite, agree])
 
+  if (recoveryCode) {
+    return (
+      <RecoveryCodeNotice
+        code={recoveryCode}
+        doneLabel="利用を始める"
+        onDone={async () => {
+          // ここで初めてログイン状態を読み込み、役割に応じた画面へ進む
+          const user = await refresh().catch(() => null)
+          navigate(homePath(user), { replace: true })
+        }}
+      />
+    )
+  }
   if (master.signupMode === 'closed') {
     return (
       <>
@@ -160,31 +181,35 @@ export function Signup() {
       </>
     )
   }
-  if (done) return <CheckEmail email={email.trim()} />
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
+    const name = username.trim().toLowerCase()
     const next: Record<string, string> = {}
     if (!role) next.role = 'どちらかを選択してください'
     if (!orgName.trim() || orgName.trim().length > 40) next.orgName = '1〜40文字で入力してください'
     if (!area.trim() || area.trim().length > 40) next.area = '1〜40文字で入力してください'
-    if (!isEmail(email.trim())) next.email = 'メールアドレスの形式を確認してください'
+    if (!isValidUsername(name)) next.username = `半角の英小文字・数字・_ で${USERNAME_MIN}〜${USERNAME_MAX}文字、英字で始めてください`
     if (password.length < master.minPasswordLength) next.password = `${master.minPasswordLength}文字以上で入力してください`
-    if (master.signupMode === 'invite' && !invite.trim()) next.invite = '招待コードを入力してください'
+    else if (password.toLowerCase().includes(name) && name.length >= USERNAME_MIN) next.password = 'ユーザー名を含まないパスワードにしてください'
+    if (master.signupMode === 'invite' && !invite.trim()) next.inviteCode = '招待コードを入力してください'
     if (!agree) next.agree = '同意が必要です'
     setErrors(next)
     setProblem(null)
     if (Object.keys(next).length > 0) return
 
     setBusy(true)
-    const { error } = await authClient.signUp.email(
-      { email: email.trim(), password, name: orgName.trim(), signupRole: role!, orgName: orgName.trim(), area: area.trim(), callbackURL: '/' },
-      { headers: master.signupMode === 'invite' ? { 'x-invite-code': invite.trim() } : undefined },
-    )
-    setBusy(false)
-    if (error) return setProblem(authErrorMessage(error))
-    setDone(true)
-    window.scrollTo(0, 0)
+    try {
+      const body: SignupInput = { username: name, password, role: role!, orgName: orgName.trim(), area: area.trim(), inviteCode: invite.trim() || undefined, website }
+      const result = await api<{ recoveryCode: string }>('/api/signup', { body })
+      setRecoveryCode(result.recoveryCode)
+      window.scrollTo(0, 0)
+    } catch (err) {
+      if (err instanceof ApiError) setErrors(err.fields)
+      setProblem(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -212,24 +237,50 @@ export function Signup() {
         <input className="input" type="text" autoComplete="organization" maxLength={40} value={orgName} onChange={(e) => setOrgName(e.target.value)} />
       </Field>
       <Field label="地域（市区町村）" required error={errors.area} hint="例：大阪市福島区、能勢町">
-        <input className="input" type="text" maxLength={40} value={area} onChange={(e) => setArea(e.target.value)} />
+        <input className="input" type="text" name="area" maxLength={40} value={area} onChange={(e) => setArea(e.target.value)} />
       </Field>
-      <Field label="メールアドレス" required error={errors.email} hint="確認用のメールをお送りします。ログインにも使います。">
-        <input className="input" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" value={email} onChange={(e) => setEmail(e.target.value)} />
+      <Field
+        label="ユーザー名"
+        required
+        error={errors.username}
+        hint={`ログインに使います。半角の英小文字・数字・_ で${USERNAME_MIN}〜${USERNAME_MAX}文字。登録後は変更できません。他の利用者には表示されません。`}
+      >
+        <input
+          className="input"
+          type="text"
+          autoComplete="username"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          maxLength={USERNAME_MAX}
+          value={username}
+          placeholder="例：mikami_fukushima"
+          onChange={(e) => setUsername(e.target.value)}
+        />
       </Field>
       <Field label="パスワード" required error={errors.password} hint={`${master.minPasswordLength}文字以上。他のサービスと同じものは使わないでください。`}>
         <PasswordInput label="パスワード" value={password} onChange={setPassword} autoComplete="new-password" />
       </Field>
       {master.signupMode === 'invite' && (
-        <Field label="招待コード" required error={errors.invite}>
+        <Field label="招待コード" required error={errors.inviteCode}>
           <input className="input" type="text" autoComplete="off" autoCapitalize="none" value={invite} onChange={(e) => setInvite(e.target.value)} />
         </Field>
       )}
+      {/* 人には見えない入力欄。自動登録プログラムが埋めた場合は、サーバーが登録を拒否する。 */}
+      <div className="visually-hidden" aria-hidden="true">
+        <label>
+          ウェブサイト（入力しないでください）
+          <input type="text" name="website" tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} />
+        </label>
+      </div>
       {role === 'PRODUCER' && (
         <Notice kind="info" title="生産者の方へ">
           <p>登録後、運営者による確認があります。確認が済むまでの間も出品の準備はできますが、飲食店の仕入れ案には表示されません。</p>
         </Notice>
       )}
+      <Notice kind="info" title="メールアドレスは不要です">
+        <p>登録が終わると「リカバリーコード」を一度だけ表示します。パスワードを忘れたときに必要になるので、必ず控えてください。</p>
+      </Notice>
       <div className={errors.agree ? 'field field-invalid' : 'field'}>
         <label className="check">
           <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
@@ -252,7 +303,7 @@ export function Signup() {
       </div>
       <div className="actions">
         <button className="btn btn-primary btn-large" type="submit" disabled={busy}>
-          {busy ? '登録中…' : '登録して確認メールを受け取る'}
+          {busy ? '登録中…' : '登録する'}
         </button>
       </div>
       <p className="link-row">
@@ -262,104 +313,59 @@ export function Signup() {
   )
 }
 
+/** パスワードを忘れたとき：ユーザー名とリカバリーコードで新しいパスワードを設定する */
 export function ForgotPassword() {
-  const [email, setEmail] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [sent, setSent] = useState(false)
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!isEmail(email.trim())) return setError('メールアドレスの形式を確認してください。')
-    setBusy(true)
-    setError(null)
-    const { error: authError } = await authClient.requestPasswordReset({ email: email.trim(), redirectTo: '/reset-password' })
-    setBusy(false)
-    if (authError) return setError(authErrorMessage(authError))
-    setSent(true)
-  }
-
-  if (sent) {
-    return (
-      <>
-        <h1 className="page-title">メールをご確認ください</h1>
-        <Notice kind="success" title="再設定用のメールを送りました">
-          <p>登録済みのメールアドレスの場合、パスワード再設定のリンクが届きます（有効期限：1時間）。届かない場合は、アドレスの入力間違いや迷惑メールのフォルダをご確認ください。</p>
-        </Notice>
-        <Link className="btn btn-large" to="/login">
-          ログイン画面へ
-        </Link>
-      </>
-    )
-  }
-  return (
-    <form className="form" onSubmit={submit} noValidate>
-      <h1 className="page-title">パスワードの再設定</h1>
-      <p className="page-lead">登録したメールアドレスに、再設定用のリンクをお送りします。</p>
-      {error && <Notice kind="error">{<p>{error}</p>}</Notice>}
-      <Field label="メールアドレス" required>
-        <input className="input" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" value={email} onChange={(e) => setEmail(e.target.value)} />
-      </Field>
-      <div className="actions">
-        <button className="btn btn-primary btn-large" type="submit" disabled={busy}>
-          {busy ? '送信中…' : '再設定用のメールを送る'}
-        </button>
-        <Link className="btn btn-large btn-quiet" to="/login">
-          戻る
-        </Link>
-      </div>
-    </form>
-  )
-}
-
-export function ResetPassword() {
-  const { master, logout } = useSession()
-  const [params] = useSearchParams()
-  const token = params.get('token')
+  const { master, setUser } = useSession()
+  const navigate = useNavigate()
+  const [username, setUsername] = useState('')
+  const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(params.get('error') ? 'リンクの有効期限が切れているか、既に使われています。' : null)
-  const [done, setDone] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [newCode, setNewCode] = useState<string | null>(null)
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
-    if (password.length < master.minPasswordLength) return setError(`パスワードは${master.minPasswordLength}文字以上で入力してください。`)
+    if (!username.trim() || !code.trim()) return setError('ユーザー名とリカバリーコードを入力してください。')
+    if (password.length < master.minPasswordLength) return setError(`新しいパスワードは${master.minPasswordLength}文字以上で入力してください。`)
     setBusy(true)
     setError(null)
-    const { error: authError } = await authClient.resetPassword({ newPassword: password, token: token! })
-    setBusy(false)
-    if (authError) return setError(authErrorMessage(authError))
-    // 再設定で他の端末のログインは無効になる。この端末もログインし直してもらう。
-    await logout().catch(() => undefined)
-    setDone(true)
+    try {
+      const result = await api<{ recoveryCode: string }>('/api/recovery', {
+        body: { username: username.trim().toLowerCase(), recoveryCode: code.trim(), newPassword: password },
+      })
+      // 再設定で、すべての端末のログインは無効になっている
+      setUser(null)
+      setNewCode(result.recoveryCode)
+      window.scrollTo(0, 0)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
   }
 
-  if (done) {
+  if (newCode) {
     return (
       <>
-        <h1 className="page-title">パスワードを変更しました</h1>
-        <Notice kind="success">{<p>新しいパスワードでログインしてください。他の端末でのログインは無効になりました。</p>}</Notice>
-        <Link className="btn btn-primary btn-large" to="/login">
-          ログイン画面へ
-        </Link>
-      </>
-    )
-  }
-  if (!token) {
-    return (
-      <>
-        <h1 className="page-title">パスワードの再設定</h1>
-        <Notice kind="error">{<p>{error ?? 'リンクが正しくありません。'} もう一度、再設定用のメールをお申し込みください。</p>}</Notice>
-        <Link className="btn btn-large" to="/forgot-password">
-          再設定をやり直す
-        </Link>
+        <Notice kind="success" title="パスワードを変更しました">
+          <p>使ったリカバリーコードは無効になりました。下の新しいコードを控えてから、新しいパスワードでログインしてください。</p>
+        </Notice>
+        <RecoveryCodeNotice code={newCode} doneLabel="ログイン画面へ" onDone={() => navigate('/login', { replace: true })} />
       </>
     )
   }
   return (
     <form className="form" onSubmit={submit} noValidate>
-      <h1 className="page-title">新しいパスワードの設定</h1>
+      <h1 className="page-title">パスワードを忘れた方</h1>
+      <p className="page-lead">登録したときに表示された「リカバリーコード」を使って、新しいパスワードを設定します。</p>
       {error && <Notice kind="error">{<p>{error}</p>}</Notice>}
+      <Field label="ユーザー名" required>
+        <input className="input" type="text" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={username} onChange={(e) => setUsername(e.target.value)} />
+      </Field>
+      <Field label="リカバリーコード" required hint="ハイフンや大文字・小文字の違いは気にせず入力できます。">
+        <input className="input input-code" type="text" autoComplete="off" autoCapitalize="characters" autoCorrect="off" spellCheck={false} value={code} placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" onChange={(e) => setCode(e.target.value)} />
+      </Field>
       <Field label="新しいパスワード" required hint={`${master.minPasswordLength}文字以上`}>
         <PasswordInput label="新しいパスワード" value={password} onChange={setPassword} autoComplete="new-password" />
       </Field>
@@ -367,7 +373,16 @@ export function ResetPassword() {
         <button className="btn btn-primary btn-large" type="submit" disabled={busy}>
           {busy ? '変更中…' : 'パスワードを変更する'}
         </button>
+        <Link className="btn btn-large btn-quiet" to="/login">
+          戻る
+        </Link>
       </div>
+      <Notice kind="info" title="リカバリーコードも失くした場合">
+        <p>
+          このサービスはメールアドレスを登録しないため、ご自身では再設定できません。
+          {master.operator ? `運営者（${master.operator.email}）へご連絡ください。ご本人であることを確認したうえで、新しいコードを発行します。` : '運営者へご連絡ください。ご本人であることを確認したうえで、新しいコードを発行します。'}
+        </p>
+      </Notice>
     </form>
   )
 }

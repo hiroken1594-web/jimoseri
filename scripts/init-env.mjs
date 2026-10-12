@@ -11,11 +11,9 @@ const defaults = {
   DEV_TEST_PASSWORD: randomBytes(9).toString('base64url'),
   GEMINI_API_KEY: '',
   GEMINI_MODEL: '',
-  SMTP_USER: '',
-  SMTP_PASS: '',
 }
 // 廃止した設定（デモ用の合言葉など）は取り除く
-const removed = ['SESSION_SECRET', 'DEMO_PASSCODE', 'DEMO_RESET_ENABLED']
+const removed = ['SESSION_SECRET', 'DEMO_PASSCODE', 'DEMO_RESET_ENABLED', 'SMTP_USER', 'SMTP_PASS', 'SMTP_HOST', 'SMTP_PORT', 'MAIL_FROM']
 
 const lines = existsSync(path) ? readFileSync(path, 'utf8').split(/\r?\n/) : ['# ローカル開発専用。Git には含めない。']
 const kept = lines.filter((line) => !removed.some((key) => line.startsWith(`${key}=`)))

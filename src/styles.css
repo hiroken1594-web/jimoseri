@@ -1285,3 +1285,22 @@ small {
   flex: none;
   white-space: nowrap;
 }
+
+.recovery-code {
+  background: var(--white);
+  border: 2px dashed var(--green-700);
+  border-radius: var(--radius);
+  padding: 16px 8px;
+  text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  word-break: break-all;
+  user-select: all;
+}
+
+.input-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.04em;
+}

@@ -67,7 +67,8 @@ export function RestaurantPlan() {
     const current = planRef.current
     if (!current) return null
     try {
-      const result = await api<{ fresh: boolean }>('/api/plan-check', {
+      const result = await api<{ fresh: boolean }>('/api/plan', {
+        method: 'PUT',
         body: { itemId: current.demand.itemId, fingerprint: current.fingerprint },
       })
       if (!result.fresh) {

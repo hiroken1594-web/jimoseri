@@ -7,4 +7,3 @@ generated/
 !.env.example
 *.log
 .DS_Store
-.dev-mail/

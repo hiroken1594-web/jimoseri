@@ -18,7 +18,7 @@ export async function getActor(request: Request): Promise<Actor | null> {
   const prisma = getPrisma()
   // セッションの写しではなく、DB の最新の役割・停止状態を使う
   let user = await prisma.user.findUnique({ where: { id: session.user.id }, include: { producer: true, restaurant: true } })
-  if (!user || !user.emailVerified || !isRole(user.role)) return null
+  if (!user || !user.username || !isRole(user.role)) return null
 
   // 初回アクセス時に、登録フォームの内容から農園・店舗の情報を作る。
   // 同時に複数のリクエストが来ても二重に作らないよう、重複は無視する。
@@ -37,7 +37,7 @@ export async function getActor(request: Request): Promise<Actor | null> {
     user: {
       id: user.id,
       role: user.role as Role,
-      email: user.email,
+      username: user.username ?? '',
       orgName: p?.farmName ?? user.restaurant?.name ?? orgName,
       area: p?.area ?? user.restaurant?.area ?? area,
       suspended: user.suspended,

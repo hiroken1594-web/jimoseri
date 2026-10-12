@@ -11,7 +11,7 @@ export const GET = handle(async (request) => {
   const prisma = getPrisma()
   const [producers, locations, listings] = await Promise.all([
     prisma.producer.findMany({
-      include: { user: { select: { email: true } }, _count: { select: { listings: true } } },
+      include: { user: { select: { username: true } }, _count: { select: { listings: true } } },
       orderBy: { createdAt: 'desc' },
       take: 200,
     }),
@@ -28,7 +28,7 @@ export const GET = handle(async (request) => {
       id: p.id,
       farmName: p.farmName,
       area: p.area,
-      email: p.user.email,
+      username: p.user.username ?? '',
       approvalStatus: p.approvalStatus,
       createdAtMs: p.createdAt.getTime(),
       listingCount: p._count.listings,

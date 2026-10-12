@@ -9,7 +9,7 @@ export function isProduction(): boolean {
   return process.env.VERCEL_ENV === 'production'
 }
 
-/** メールのリンクや Cookie の基準になる、このサービスの URL */
+/** Cookie や送信元の確認の基準になる、このサービスの URL */
 export function baseUrl(): string {
   if (process.env.BETTER_AUTH_URL) return process.env.BETTER_AUTH_URL.replace(/\/$/, '')
   if (process.env.VERCEL_ENV === 'production' && process.env.VERCEL_PROJECT_PRODUCTION_URL) {

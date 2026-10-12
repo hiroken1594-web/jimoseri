@@ -1,6 +1,6 @@
 import { allocate, toMilli, type DemandSpec } from '../shared/allocate.js'
 import type { PlanResponse, PublicContact } from '../shared/dto.js'
-import { demandSchema } from '../shared/schemas.js'
+import { demandSchema, planCheckSchema } from '../shared/schemas.js'
 import { endOfJstDayMs, jstDateString, jstToMs } from '../shared/time.js'
 import { requireActor } from './_lib/auth.js'
 import { handle, HttpError, json, readBody } from './_lib/http.js'
@@ -129,4 +129,14 @@ export const POST = handle(async (request) => {
     contacts,
   }
   return json(response)
+})
+
+// 表示中の仕入れ案が古くなっていないか確認する（在庫変更・公開停止・期限切れ・審査状態の変化を検知）。
+export const PUT = handle(async (request) => {
+  await requireActor(request, 'RESTAURANT')
+  const body = await readBody(request, planCheckSchema)
+  const nowMs = Date.now()
+  const rows = await getPrisma().listing.findMany({ where: planEligibleWhere(body.itemId), include: listingInclude })
+  const fresh = computeFingerprint(rows.map(toCandidate), nowMs) === body.fingerprint
+  return json({ fresh, checkedAtMs: nowMs })
 })
