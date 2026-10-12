@@ -1,6 +1,7 @@
 import { toMilli } from '../shared/allocate.js'
 import type { AdminOverview } from '../shared/dto.js'
 import { adminActionSchema } from '../shared/schemas.js'
+import { issueRecoveryCode } from './_lib/accounts.js'
 import { requireActor } from './_lib/auth.js'
 import { handle, HttpError, json, readBody } from './_lib/http.js'
 import { getPrisma } from './_lib/prisma.js'
@@ -64,6 +65,23 @@ export const POST = handle(async (request) => {
   await requireActor(request, 'ADMIN')
   const body = await readBody(request, adminActionSchema)
   const prisma = getPrisma()
+
+  if (body.target === 'recovery') {
+    // 運営者自身や他の運営者のコードは、ここからは発行できない（乗っ取りの連鎖を防ぐ）
+    const user = await prisma.user.findUnique({ where: { username: body.username } })
+    if (!user || user.role === 'ADMIN') throw new HttpError(404, 'NOT_FOUND', 'そのユーザー名の利用者が見つかりません。')
+    const recoveryCode = await issueRecoveryCode(user.id)
+    console.warn(`[admin] recovery code reissued for user ${user.id}`)
+    return json({ ok: true, recoveryCode })
+  }
+  if (body.target === 'location' && body.action === 'delete') {
+    const used = await prisma.listing.count({ where: { pickupLocationId: body.id } })
+    if (used > 0) throw new HttpError(400, 'IN_USE', 'この受渡場所は出品に使われているため削除できません。停止を使ってください。')
+    const removed = await prisma.pickupLocation.deleteMany({ where: { id: body.id } })
+    if (removed.count === 0) throw new HttpError(404, 'NOT_FOUND', '対象が見つかりません。一覧を読み込み直してください。')
+    return json({ ok: true })
+  }
+
   const status = body.action === 'approve' ? 'APPROVED' : 'SUSPENDED'
   let count = 0
   if (body.target === 'producer') {

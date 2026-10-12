@@ -286,6 +286,18 @@ await admin('/api/admin', { body: { target: 'producer', id: newProducer.id, acti
 check('停止された生産者の出品は仕入れ案に出ない', (await plan()).result.best.plan.producerCount === 3)
 await admin('/api/admin', { body: { target: 'producer', id: newProducer.id, action: 'approve' } })
 
+r = await farmA('/api/admin', { body: { target: 'recovery', username: 'restaurant2' } })
+check('運営者以外は、他人のリカバリーコードを再発行できない', r.status === 403)
+r = await admin('/api/admin', { body: { target: 'recovery', username: 'restaurant2' } })
+check('運営者は、利用者のリカバリーコードを再発行できる', r.status === 200 && CODE_FORMAT.test(r.data.recoveryCode ?? ''))
+r = await recover({ username: 'restaurant2', recoveryCode: r.data.recoveryCode, newPassword: PASSWORD })
+check('運営者が発行したコードでパスワードを再設定できる', r.status === 200 && (await restaurant2.login('restaurant2')).status === 200)
+check('運営者のコードは管理画面からは再発行できない', (await admin('/api/admin', { body: { target: 'recovery', username: 'unei_test' } })).status === 404)
+check('出品に使われている受渡場所は削除できない', (await admin('/api/admin', { body: { target: 'location', id: placeP.id, action: 'delete' } })).status === 400)
+r = await farmC('/api/locations', { body: { name: '使わない場所', municipality: '能勢町', address: 'テスト9-9', note: '' } })
+check('運営者は、使われていない受渡場所を削除できる', (await admin('/api/admin', { body: { target: 'location', id: r.data.location.id, action: 'delete' } })).status === 200)
+check('生産者は受渡場所を削除できない（管理APIを使えない）', (await farmC('/api/admin', { body: { target: 'location', id: placeQ.id, action: 'delete' } })).status === 403)
+
 console.log('連絡先・履歴・退会')
 r = await farmA('/api/me', { method: 'PATCH', body: { orgName: 'テストA農園', area: '能勢町', publicPhone: '090-0000-0000', showPhone: false, publicEmail: 'farm-a-public@example.invalid', showEmail: true, contactNote: null } })
 check('生産者は公開する連絡先を変更できる', r.status === 200 && r.data.user.producer.showEmail === true)

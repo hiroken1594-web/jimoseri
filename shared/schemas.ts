@@ -85,11 +85,14 @@ export const locationCreateSchema = z.object({
   note: z.string().trim().max(100, '補足は100文字以内で入力してください'),
 })
 
-export const adminActionSchema = z.object({
-  target: z.enum(['producer', 'location', 'listing']),
-  id,
-  action: z.enum(['approve', 'suspend']),
-})
+export const adminActionSchema = z.discriminatedUnion('target', [
+  z.object({ target: z.literal('producer'), id, action: z.enum(['approve', 'suspend']) }),
+  // delete は、出品に使われていない受渡場所だけ
+  z.object({ target: z.literal('location'), id, action: z.enum(['approve', 'suspend', 'delete']) }),
+  z.object({ target: z.literal('listing'), id, action: z.enum(['approve', 'suspend']) }),
+  // パスワードもリカバリーコードも失くした利用者に、本人確認のうえで新しいコードを発行する
+  z.object({ target: z.literal('recovery'), username: z.string().trim().toLowerCase().min(1, 'ユーザー名を入力してください').max(40) }),
+])
 
 export const listingCreateSchema = z
   .object({

@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import type { AdminOverview, ReviewStatus } from '../../shared/dto.js'
 import { formatQtyUnit, formatYen } from '../../shared/labels.js'
 import type { AdminActionInput } from '../../shared/schemas.js'
 import { formatJstDateTime } from '../../shared/time.js'
 import { api, errorMessage } from '../api.js'
-import { Loading, Notice } from '../components/ui.js'
+import { Field, Loading, Notice } from '../components/ui.js'
 
 const STATUS: Record<ReviewStatus, { label: string; className: string }> = {
   PENDING: { label: '確認待ち', className: 'chip chip-warn' },
@@ -12,6 +12,53 @@ const STATUS: Record<ReviewStatus, { label: string; className: string }> = {
   SUSPENDED: { label: '停止中', className: 'chip chip-off' },
 }
 const ORDER: Record<ReviewStatus, number> = { PENDING: 0, APPROVED: 1, SUSPENDED: 2 }
+
+/** パスワードもリカバリーコードも失くした利用者への、コードの再発行 */
+function RecoveryReissue() {
+  const [username, setUsername] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [issued, setIssued] = useState<{ username: string; code: string } | null>(null)
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    const name = username.trim().toLowerCase()
+    if (!name) return setError('ユーザー名を入力してください。')
+    if (!window.confirm(`「${name}」のリカバリーコードを再発行します。本人であることは確認しましたか？これまでのコードは使えなくなります。`)) return
+    setBusy(true)
+    setError(null)
+    setIssued(null)
+    try {
+      const result = await api<{ recoveryCode: string }>('/api/admin', { body: { target: 'recovery', username: name } })
+      setIssued({ username: name, code: result.recoveryCode })
+      setUsername('')
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <form className="card form" onSubmit={submit} noValidate>
+      <h2 className="card-title">リカバリーコードの再発行</h2>
+      <p className="field-hint">
+        パスワードもリカバリーコードも失くした利用者のための操作です。電話や対面などで本人であることを確かめてから行ってください。コードを知った人は、その利用者のパスワードを変更できます。
+      </p>
+      <Field label="利用者のユーザー名" required>
+        <input className="input" type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={username} onChange={(e) => setUsername(e.target.value)} />
+      </Field>
+      {error && <Notice kind="error">{<p>{error}</p>}</Notice>}
+      {issued && (
+        <Notice kind="warn" title={`「${issued.username}」の新しいコード（この画面にだけ表示されます）`}>
+          <p className="recovery-code">{issued.code}</p>
+          <p>本人に安全な方法で伝えてください。「パスワードを忘れた方」の画面で使うと、新しいパスワードを設定できます。</p>
+        </Notice>
+      )}
+      <button className="btn btn-block" type="submit" disabled={busy}>
+        {busy ? '発行中…' : '本人確認のうえで再発行する'}
+      </button>
+    </form>
+  )
+}
 
 // 運営者用の最小限の管理画面：生産者の審査、受渡場所の確認、出品の停止。
 export function Admin() {
@@ -132,6 +179,15 @@ export function Admin() {
                 </div>
               </dl>
               {actions('location', l.id, l.status, l.name)}
+              {l.status !== 'APPROVED' && (
+                <button
+                  className="link-button"
+                  disabled={busy}
+                  onClick={() => act({ target: 'location', id: l.id, action: 'delete' }, `「${l.name}」を削除しますか？出品に使われている場所は削除できません。`)}
+                >
+                  この場所を削除する
+                </button>
+              )}
             </article>
           ))}
         </div>
@@ -167,6 +223,7 @@ export function Admin() {
           ))}
         </div>
       </section>
+      <RecoveryReissue />
     </>
   )
 }
