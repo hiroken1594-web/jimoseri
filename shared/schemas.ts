@@ -176,7 +176,7 @@ export const extractSchema = z.object({
   text: z.string().max(MAX_TEXT_LENGTH, `${MAX_TEXT_LENGTH}文字以内で入力してください`),
 })
 
-// Gemini の応答を検証する形。書かれていない項目は null（推測で補わない）。
+// AI（OpenAI API）の応答を検証する形。書かれていない項目は null（推測で補わない）。
 export const aiExtractionSchema = z.object({
   outOfScope: z.enum(['NONE', 'PERSONAL', 'MULTI_ITEM', 'NATIONWIDE', 'UNREADABLE']),
   itemName: z.string().max(40).nullable(),

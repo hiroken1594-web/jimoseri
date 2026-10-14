@@ -3,11 +3,10 @@ import { extractSchema } from '../shared/schemas.js'
 import { jstDateString, jstToMs } from '../shared/time.js'
 import { requireActor } from './_lib/auth.js'
 import { aiDailyLimit } from './_lib/config.js'
-import { AiUnavailableError, extractConditions } from './_lib/gemini.js'
+import { AiUnavailableError, extractConditions, isAiConfigured } from './_lib/openai.js'
 import { handle, HttpError, json, readBody } from './_lib/http.js'
 import { getPrisma } from './_lib/prisma.js'
 
-const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
 const SCOPE_MESSAGE = 'このサービスは地域の生産者と飲食店の仕入れ案づくりが対象です。'
 
 const unavailable = (): ExtractResponse => ({
@@ -23,7 +22,7 @@ export const POST = handle(async (request) => {
   const text = body.text.trim()
   // 空入力では AI を呼ばない（仕様 5章）。
   if (!text) throw new HttpError(400, 'EMPTY', '品目・数量・希望日を入力してください。')
-  if (!process.env.GEMINI_API_KEY) return json(unavailable())
+  if (!isAiConfigured()) return json(unavailable())
 
   const prisma = getPrisma()
   const nowMs = Date.now()
@@ -44,11 +43,10 @@ export const POST = handle(async (request) => {
   }
 
   const items = await prisma.item.findMany({ orderBy: { sortOrder: 'asc' } })
-  const weekday = WEEKDAYS[new Date(jstToMs(today) + 9 * 60 * 60 * 1000).getUTCDay()]
 
   let ai
   try {
-    ai = await extractConditions(text, today, weekday, items.map((i) => i.name))
+    ai = await extractConditions(text, today, items.map((i) => i.name))
   } catch (error) {
     if (!(error instanceof AiUnavailableError)) throw error
     console.warn('[extract] AI unavailable:', error.message)

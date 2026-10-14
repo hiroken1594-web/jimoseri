@@ -3,6 +3,7 @@ import { getActor } from './_lib/auth.js'
 import { MIN_PASSWORD_LENGTH } from './_lib/auth-server.js'
 import { operatorInfo, signupMode } from './_lib/config.js'
 import { handle, json } from './_lib/http.js'
+import { isAiConfigured } from './_lib/openai.js'
 import { getPrisma } from './_lib/prisma.js'
 
 // 画面の選択肢と、公開してよい設定。秘密情報は含めない。
@@ -34,7 +35,7 @@ export const GET = handle(async (request) => {
         }))
       : [],
     municipalities: [...new Set(approved.map((l) => l.municipality))],
-    aiEnabled: Boolean(process.env.GEMINI_API_KEY),
+    aiEnabled: isAiConfigured(),
     signupMode: signupMode(),
     operator: operatorInfo(),
     minPasswordLength: MIN_PASSWORD_LENGTH,
