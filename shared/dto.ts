@@ -47,6 +47,8 @@ export interface MasterData {
   aiEnabled: boolean
   signupMode: SignupMode
   operator: { name: string; email: string } | null
+  /** 問い合わせ先の電話番号（正式に決まるまでは仮の表示） */
+  supportPhone: string
   minPasswordLength: number
 }
 

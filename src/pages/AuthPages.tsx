@@ -36,6 +36,17 @@ export function PasswordInput({
   )
 }
 
+/** リカバリーコードを失くした場合の問い合わせ案内（補足として小さく表示する） */
+function RecoveryHelp() {
+  const { master } = useSession()
+  return (
+    <p className="support-note">
+      リカバリーコードを紛失された場合は、運営までお問い合わせください。本人確認後、再発行のご案内が可能です。お問い合わせ先：
+      <span className="nowrap">{master.supportPhone}</span>
+    </p>
+  )
+}
+
 /**
  * リカバリーコードの表示。発行した直後に一度だけ表示し、控えたことを確認してから先へ進める。
  * サーバーにはコードそのものを保存していないため、後から表示し直すことはできない。
@@ -132,6 +143,7 @@ export function Login() {
         <Link to="/forgot-password">パスワードを忘れた方</Link>
         <Link to="/signup">新規登録はこちら</Link>
       </p>
+      <RecoveryHelp />
     </form>
   )
 }
@@ -243,7 +255,7 @@ export function Signup() {
         label="ユーザー名"
         required
         error={errors.username}
-        hint={`ログインに使います。半角の英小文字・数字・_ で${USERNAME_MIN}〜${USERNAME_MAX}文字。登録後は変更できません。他の利用者には表示されません。`}
+        hint={`ログインに使います。半角の英小文字・数字・_ で${USERNAME_MIN}〜${USERNAME_MAX}文字。あとからマイページで変更できます。他の利用者には表示されません。`}
       >
         <input
           className="input"
@@ -377,12 +389,7 @@ export function ForgotPassword() {
           戻る
         </Link>
       </div>
-      <Notice kind="info" title="リカバリーコードも失くした場合">
-        <p>
-          このサービスはメールアドレスを登録しないため、ご自身では再設定できません。
-          {master.operator ? `運営者（${master.operator.email}）へご連絡ください。ご本人であることを確認したうえで、新しいコードを発行します。` : '運営者へご連絡ください。ご本人であることを確認したうえで、新しいコードを発行します。'}
-        </p>
-      </Notice>
+      <RecoveryHelp />
     </form>
   )
 }

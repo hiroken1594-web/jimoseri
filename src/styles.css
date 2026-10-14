@@ -1304,3 +1304,20 @@ small {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   letter-spacing: 0.04em;
 }
+
+/* 補足の案内（問い合わせ先など）。操作の邪魔にならないよう、小さく薄く表示する。 */
+.support-note {
+  margin-top: 4px;
+  color: #7a857e;
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
+
+.current-username {
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.nowrap {
+  white-space: nowrap;
+}

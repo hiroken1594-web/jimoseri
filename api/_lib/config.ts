@@ -31,6 +31,15 @@ export function operatorInfo(): OperatorInfo | null {
   return name && email ? { name, email } : null
 }
 
+/**
+ * 利用者に案内する問い合わせ先の電話番号。
+ * 正式な番号が決まったら、環境変数 OPERATOR_PHONE に設定して再デプロイする（コードの変更は不要）。
+ * 未設定の間は、仮の表示にする。
+ */
+export function supportPhone(): string {
+  return process.env.OPERATOR_PHONE?.trim() || '06-XXXX-XXXX'
+}
+
 export type SignupMode = 'open' | 'invite' | 'closed'
 
 /**

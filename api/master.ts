@@ -1,7 +1,7 @@
 import type { MasterData } from '../shared/dto.js'
 import { getActor } from './_lib/auth.js'
 import { MIN_PASSWORD_LENGTH } from './_lib/auth-server.js'
-import { operatorInfo, signupMode } from './_lib/config.js'
+import { operatorInfo, signupMode, supportPhone } from './_lib/config.js'
 import { handle, json } from './_lib/http.js'
 import { isAiConfigured } from './_lib/openai.js'
 import { getPrisma } from './_lib/prisma.js'
@@ -38,6 +38,7 @@ export const GET = handle(async (request) => {
     aiEnabled: isAiConfigured(),
     signupMode: signupMode(),
     operator: operatorInfo(),
+    supportPhone: supportPhone(),
     minPasswordLength: MIN_PASSWORD_LENGTH,
   }
   return json(data)

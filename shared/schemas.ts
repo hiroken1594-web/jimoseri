@@ -47,6 +47,12 @@ export const recoveryResetSchema = z.object({
   newPassword: passwordField,
 })
 
+// ユーザー名の変更（本人のみ。現在のパスワードで確認する）
+export const usernameChangeSchema = z.object({
+  username: usernameField,
+  password: z.string().min(1, '現在のパスワードを入力してください').max(128),
+})
+
 export const recoveryReissueSchema = z.object({
   password: z.string().min(1, '現在のパスワードを入力してください').max(128),
 })

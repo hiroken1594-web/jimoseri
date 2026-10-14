@@ -105,6 +105,9 @@ const noUser = await client().login('no_such_user_zz', 'wrong-password-123')
 check('存在しないユーザー名でも同じ応答を返す（登録の有無を漏らさない）', noUser.status === 401 && noUser.data?.code === r.data?.code)
 check('正しいパスワードでログインできる', (await newbie.login(newName, newPassword)).status === 200)
 
+const farmBPre = client()
+await farmBPre.login('farm_b')
+
 console.log('リカバリーコードによるパスワード再設定')
 const otherDevice = client()
 await otherDevice.login(newName, newPassword)
@@ -131,6 +134,28 @@ r = await newbie('/api/recovery', { method: 'PUT', body: { password: resetPasswo
 const thirdCode = r.data?.recoveryCode
 check('ログイン中の本人はコードを再発行できる', r.status === 200 && CODE_FORMAT.test(thirdCode ?? '') && thirdCode !== secondCode)
 check('再発行すると、それまでのコードは無効になる', (await recover({ username: newName, recoveryCode: secondCode, newPassword: 'another-password-123' })).status === 400)
+console.log('ユーザー名の変更')
+const renamed = `${newName}_x`
+const rename = (c, body) => c('/api/me', { method: 'PUT', body })
+check('未ログインではユーザー名を変更できない', (await rename(anon, { username: renamed, password: resetPassword })).status === 401)
+check('現在のパスワードが違うと変更できない', (await rename(newbie, { username: renamed, password: 'wrong-password-123' })).status === 400)
+check('使えない文字・短すぎる名前には変更できない', (await rename(newbie, { username: 'bad name!', password: resetPassword })).status === 400 && (await rename(newbie, { username: 'ab', password: resetPassword })).status === 400)
+check('なりすましに使われやすい名前（admin）には変更できない', (await rename(newbie, { username: 'admin', password: resetPassword })).status === 400)
+check('他の利用者と重複するユーザー名には変更できない', (await rename(newbie, { username: 'restaurant1', password: resetPassword })).status === 409)
+check('大文字で入力しても、重複は見逃さない', (await rename(newbie, { username: 'RESTAURANT1', password: resetPassword })).status === 409)
+r = await rename(newbie, { username: renamed, password: resetPassword, userId: 'someone-else', id: 'someone-else' })
+check('自分のユーザー名を変更できる', r.status === 200 && r.data.user.username === renamed, JSON.stringify(r.data))
+check('他人を指定する値を紛れ込ませても、変わるのは本人だけ', (await db.query('select count(*)::int as n from "user" where username = $1', ['restaurant1'])).rows[0].n === 1 && (await db.query('select count(*)::int as n from "user" where username = $1', [renamed])).rows[0].n === 1)
+check('変更後もログイン状態と役割・審査状態は維持される', (await newbie('/api/me')).data.user?.producer?.approvalStatus === 'PENDING')
+check('変更後のユーザー名でログインできる', (await client().login(renamed, resetPassword)).status === 200)
+check('変更前のユーザー名ではログインできない', (await client().login(newName, resetPassword)).status === 401)
+check('変更後のユーザー名とリカバリーコードの組み合わせが引き継がれる', (await recover({ username: newName, recoveryCode: thirdCode, newPassword: resetPassword })).status === 400 && (await db.query('select count(*)::int as n from "RecoveryCode" r join "user" u on u.id = r."userId" where u.username = $1', [renamed])).rows[0].n === 1)
+check('元のユーザー名に戻せる（空いた名前は再び使える）', (await rename(newbie, { username: newName, password: resetPassword })).status === 200)
+const bListingBefore = (await farmBPre('/api/listings')).data.listings.length
+r = await rename(farmBPre, { username: 'farm_b_renamed', password: PASSWORD })
+check('ユーザー名を変更しても、出品はそのまま残る', r.status === 200 && bListingBefore > 0 && (await farmBPre('/api/listings')).data.listings.length === bListingBefore)
+await rename(farmBPre, { username: 'farm_b', password: PASSWORD })
+
 check('有効なコードは利用者ごとに1つだけ', (await db.query('select count(*)::int as n from "RecoveryCode" r join "user" u on u.id = r."userId" where u.username = $1', [newName])).rows[0].n === 1)
 
 console.log('権限')
