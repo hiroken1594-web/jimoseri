@@ -35,15 +35,15 @@ export type SignupMode = 'open' | 'invite' | 'closed'
 
 /**
  * 新規登録の受け付け方。
- * - open   ：誰でも登録できる。運営者情報が設定されていなければ closed として扱う。
- * - invite ：招待コードを知っている関係者だけが登録できる（公開前の検証用）。
+ * - open   ：誰でも登録できる。
+ * - invite ：招待コードを知っている関係者だけが登録できる。
  * - closed ：登録を受け付けない。
  * Vercel 上では、明示的に設定しない限り closed。ローカル開発では open。
  */
 export function signupMode(): SignupMode {
   const raw = process.env.SIGNUP_MODE
   if (raw === 'invite') return process.env.SIGNUP_INVITE_CODE ? 'invite' : 'closed'
-  if (raw === 'open') return operatorInfo() || !process.env.VERCEL ? 'open' : 'closed'
+  if (raw === 'open') return 'open'
   if (raw === 'closed') return 'closed'
   return process.env.VERCEL ? 'closed' : 'open'
 }
