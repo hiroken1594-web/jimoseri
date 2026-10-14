@@ -14,7 +14,11 @@ export const GET = handle(async (request) => {
 
   const [items, approved, mine] = await Promise.all([
     prisma.item.findMany({ orderBy: { sortOrder: 'asc' } }),
-    prisma.pickupLocation.findMany({ where: { status: 'APPROVED' }, orderBy: [{ municipality: 'asc' }, { name: 'asc' }] }),
+    // デモデータの場所は、それを登録したデモ用の生産者にだけ見せる
+    prisma.pickupLocation.findMany({
+      where: { status: 'APPROVED', OR: [{ isDemo: false }, ...(producerId ? [{ createdById: producerId }] : [])] },
+      orderBy: [{ municipality: 'asc' }, { name: 'asc' }],
+    }),
     // 生産者には、自分が登録した確認待ちの場所も返す
     producerId
       ? prisma.pickupLocation.findMany({ where: { createdById: producerId, status: { not: 'APPROVED' } }, orderBy: { createdAt: 'desc' } })
@@ -34,7 +38,7 @@ export const GET = handle(async (request) => {
           mine: l.createdById === producerId,
         }))
       : [],
-    municipalities: [...new Set(approved.map((l) => l.municipality))],
+    municipalities: [...new Set(approved.filter((l) => !l.isDemo).map((l) => l.municipality))],
     aiEnabled: isAiConfigured(),
     signupMode: signupMode(),
     operator: operatorInfo(),

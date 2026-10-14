@@ -1321,3 +1321,11 @@ small {
 .nowrap {
   white-space: nowrap;
 }
+
+/* デモデータ（お試し用）の目印 */
+.chip-demo {
+  background: #e8ecf3;
+  color: #33415c;
+  margin-left: 6px;
+  vertical-align: middle;
+}

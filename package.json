@@ -22,7 +22,9 @@
     "db:deploy": "prisma migrate deploy",
     "db:master": "tsx prisma/master.ts",
     "db:seed": "tsx prisma/seed.ts",
-    "admin:grant": "tsx scripts/grant-admin.ts"
+    "admin:grant": "tsx scripts/grant-admin.ts",
+    "demo:seed": "tsx scripts/demo-data.ts seed",
+    "demo:remove": "tsx scripts/demo-data.ts remove"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",

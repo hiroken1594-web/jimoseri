@@ -128,7 +128,10 @@ export function Admin() {
           {producers.map((p) => (
             <article className="card" key={p.id}>
               <header className="card-head">
-                <h3>{p.farmName}</h3>
+                <h3>
+                  {p.farmName}
+                  {p.isDemo && <span className="chip chip-demo">デモ</span>}
+                </h3>
                 <span className={STATUS[p.approvalStatus].className}>{STATUS[p.approvalStatus].label}</span>
               </header>
               <dl className="meta">
@@ -160,7 +163,10 @@ export function Admin() {
           {locations.map((l) => (
             <article className="card" key={l.id}>
               <header className="card-head">
-                <h3>{l.name}</h3>
+                <h3>
+                  {l.name}
+                  {l.isDemo && <span className="chip chip-demo">デモ</span>}
+                </h3>
                 <span className={STATUS[l.status].className}>{STATUS[l.status].label}</span>
               </header>
               <dl className="meta">
@@ -202,6 +208,7 @@ export function Admin() {
               <header className="card-head">
                 <h3>
                   {l.itemName} {formatQtyUnit(l.quantityMilli, l.unit)}
+                  {l.isDemo && <span className="chip chip-demo">デモ</span>}
                 </h3>
                 {l.adminSuspended ? <span className="chip chip-off">運営者が停止中</span> : !l.isPublished && <span className="chip">本人が公開停止中</span>}
               </header>

@@ -185,6 +185,8 @@ model Producer {
   publicEmail    String?
   showEmail      Boolean      @default(false)
   contactNote    String?
+  // デモデータ（お試し用）の生産者。出品は飲食店の仕入れ案に使われない。
+  isDemo         Boolean      @default(false)
   createdAt      DateTime     @default(now())
   listings       Listing[]
   locations      PickupLocation[]
@@ -201,6 +203,8 @@ model PickupLocation {
   status       ReviewStatus @default(PENDING)
   createdById  String?
   createdBy    Producer?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  // デモデータ（お試し用）の場所。他の生産者の選択肢や、飲食店の受取エリアには出さない。
+  isDemo       Boolean      @default(false)
   createdAt    DateTime     @default(now())
   listings     Listing[]
 
@@ -240,6 +244,8 @@ model Listing {
   isPublished      Boolean          @default(true)
   // 運営者による停止
   adminSuspended   Boolean          @default(false)
+  // デモデータ（お試し用）。飲食店の仕入れ案には使わない。npm run demo:remove で一括削除できる。
+  isDemo           Boolean          @default(false)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 

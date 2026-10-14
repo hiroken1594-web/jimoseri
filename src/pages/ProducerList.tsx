@@ -84,7 +84,8 @@ function ListingCard({
     void patch({ quantity: value })
   }
 
-  let state = { label: '公開中・提案候補', className: 'chip chip-live' }
+  // デモデータは仕入れ案に使われないため、「提案候補」とは表示しない
+  let state = listing.isDemo ? { label: '公開中（お試し用）', className: 'chip chip-live' } : { label: '公開中・提案候補', className: 'chip chip-live' }
   if (expired) state = { label: '受渡日時を過ぎました', className: 'chip chip-off' }
   else if (!listing.isPublished) state = { label: '公開停止中', className: 'chip chip-off' }
   else if (listing.blockers.length > 0) state = { label: '提案の対象外', className: 'chip chip-warn' }
@@ -108,6 +109,7 @@ function ListingCard({
         <span className="chip">
           {formatYen(listing.unitPriceYen)}/{unit}（税込）
         </span>
+        {listing.isDemo && <span className="chip chip-demo">デモデータ（お試し用）</span>}
       </p>
       {!expired && listing.blockers.length > 0 && (
         <Notice kind="warn" title="まだ飲食店の仕入れ案には表示されません">
@@ -224,6 +226,13 @@ export function ProducerList() {
   return (
     <>
       <h1 className="page-title">販売できるもの</h1>
+      {user?.producer?.isDemo && (
+        <Notice kind="info" title="デモデータ（お試し用）のアカウントです">
+          <p>
+            表示されている出品はすべて架空のお試し用データです。数量の変更・編集・削除・新規登録を自由に試せます。実際の取引・通知・決済は発生せず、飲食店の仕入れ案にも表示されません。
+          </p>
+        </Notice>
+      )}
       {approval === 'PENDING' && (
         <Notice kind="warn" title="運営者が登録内容を確認中です">
           <p>確認が済むまで、出品は飲食店の仕入れ案に表示されません。今のうちに出品を登録して準備しておくことができます。</p>
@@ -234,9 +243,11 @@ export function ProducerList() {
           <p>運営者により停止されているため、出品は飲食店の仕入れ案に表示されません。</p>
         </Notice>
       )}
-      <p className="page-lead">
-        登録した内容は、条件が合う飲食店の仕入れ案の<strong>候補</strong>になります。登録や提案への掲載は、売れたことを意味しません。
-      </p>
+      {!user?.producer?.isDemo && (
+        <p className="page-lead">
+          登録した内容は、条件が合う飲食店の仕入れ案の<strong>候補</strong>になります。登録や提案への掲載は、売れたことを意味しません。
+        </p>
+      )}
       <Link className="btn btn-primary btn-large btn-block" to="/producer/new">
         ＋ 販売できるものを登録
       </Link>

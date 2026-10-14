@@ -16,7 +16,7 @@ export const POST = handle(async (request) => {
   if (pending >= MAX_PENDING_PER_PRODUCER) {
     throw new HttpError(400, 'TOO_MANY', '確認待ちの受渡場所が多すぎます。運営者の確認をお待ちください。')
   }
-  const row = await prisma.pickupLocation.create({ data: { ...body, createdById: actor.producerId! } })
+  const row = await prisma.pickupLocation.create({ data: { ...body, createdById: actor.producerId!, isDemo: actor.user.producer?.isDemo ?? false } })
   const location: LocationDto = {
     id: row.id,
     name: row.name,

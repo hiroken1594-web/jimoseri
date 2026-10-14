@@ -49,6 +49,7 @@ export async function getActor(request: Request): Promise<Actor | null> {
             publicEmail: p.publicEmail,
             showEmail: p.showEmail,
             contactNote: p.contactNote,
+            isDemo: p.isDemo,
           }
         : null,
     },

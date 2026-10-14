@@ -19,8 +19,10 @@ export function planEligibleWhere(itemId: string): Prisma.ListingWhereInput {
   return {
     itemId,
     adminSuspended: false,
-    producer: { approvalStatus: 'APPROVED', user: { suspended: false } },
-    pickupLocation: { status: 'APPROVED' },
+    // デモデータ（お試し用）は、実際の飲食店の仕入れ案に混ぜない
+    isDemo: false,
+    producer: { approvalStatus: 'APPROVED', isDemo: false, user: { suspended: false } },
+    pickupLocation: { status: 'APPROVED', isDemo: false },
   }
 }
 
@@ -80,6 +82,7 @@ export function toListingDto(row: ListingRow): ListingDto {
     isPublished: c.isPublished,
     updatedAtMs: c.updatedAtMs,
     blockers: listingBlockers(row),
+    isDemo: row.isDemo,
   }
 }
 

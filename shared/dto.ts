@@ -13,6 +13,8 @@ export interface ProducerProfile {
   publicEmail: string | null
   showEmail: boolean
   contactNote: string | null
+  /** デモデータ（お試し用）の生産者 */
+  isDemo: boolean
 }
 
 export interface SessionUser {
@@ -79,6 +81,8 @@ export interface ListingDto {
   isPublished: boolean
   updatedAtMs: number
   blockers: ListingBlocker[]
+  /** デモデータ（お試し用）。飲食店の仕入れ案には使われない */
+  isDemo: boolean
 }
 
 export interface ConfirmedDemand {
@@ -151,6 +155,7 @@ export interface AdminOverview {
     approvalStatus: ReviewStatus
     createdAtMs: number
     listingCount: number
+    isDemo: boolean
   }[]
   locations: {
     id: string
@@ -161,6 +166,7 @@ export interface AdminOverview {
     status: ReviewStatus
     createdByName: string | null
     createdAtMs: number
+    isDemo: boolean
   }[]
   listings: {
     id: string
@@ -173,6 +179,7 @@ export interface AdminOverview {
     pickupStartMs: number
     isPublished: boolean
     adminSuspended: boolean
+    isDemo: boolean
   }[]
 }
 

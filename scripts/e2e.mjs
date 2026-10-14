@@ -2,6 +2,7 @@
 // テストデータを作り直すため、ローカルの DB（localhost）でしか動かない。
 // 実行: npm run dev を起動した状態で  npm run e2e
 import { execSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import pg from 'pg'
 
 process.loadEnvFile('.env.local')
@@ -353,6 +354,43 @@ check('退会でリカバリーコードも消える', (await db.query('select c
 check('退会後は出品が仕入れ案から消える', (await plan()).result.best.plan.producerCount === 3)
 r = await farmA(`/api/listings?id=${aTomato.id}`, { method: 'DELETE' })
 check('自分の出品を削除できる', r.status === 200 && (await plan()).result.best.plan.totalMilli === 5000)
+
+console.log('デモデータ（お試し用）')
+execSync('npx tsx scripts/demo-data.ts seed', { stdio: 'ignore' })
+const demoPassword = readFileSync('.env.demo.local', 'utf8').match(/^DEMO_FARM_PASSWORD=(.+)$/m)[1].trim()
+const demo = client()
+check('デモ用アカウントでログインできる', (await demo.login('demo_farm', demoPassword)).status === 200)
+const demoMe = (await demo('/api/me')).data.user
+check('デモ用アカウントは生産者で、デモデータの目印が付いている', demoMe.role === 'PRODUCER' && demoMe.producer.isDemo === true)
+const demoListings = (await demo('/api/listings')).data.listings
+check('デモデータの出品が50件あり、すべて目印付き', demoListings.length === 50 && demoListings.every((l) => l.isDemo))
+const kinds = {
+  stopped: demoListings.filter((l) => !l.isPublished).length,
+  soldout: demoListings.filter((l) => l.quantityMilli === 0).length,
+  expired: demoListings.filter((l) => l.pickupEndMs <= Date.now()).length,
+  suspended: demoListings.filter((l) => l.blockers.includes('ADMIN_SUSPENDED')).length,
+  pendingPlace: demoListings.filter((l) => l.blockers.includes('LOCATION_PENDING')).length,
+  items: new Set(demoListings.map((l) => l.itemName)).size,
+  units: new Set(demoListings.map((l) => l.unit)).size,
+  irregular: demoListings.filter((l) => l.grade === 'IRREGULAR').length,
+  updatedDays: new Set(demoListings.map((l) => new Date(l.updatedAtMs).toISOString().slice(0, 10))).size,
+}
+check('状態・品目・単位・規格外・更新日にばらつきがある', kinds.stopped === 5 && kinds.soldout === 4 && kinds.expired === 7 && kinds.suspended === 2 && kinds.pendingPlace === 2 && kinds.items >= 15 && kinds.units === 4 && kinds.irregular > 0 && kinds.updatedDays >= 10, JSON.stringify(kinds))
+const demoTomatoDay = demoListings.filter((l) => l.itemName === 'トマト' && l.isPublished && l.quantityMilli > 0 && l.pickupEndMs > Date.now())
+r = await restaurant('/api/plan', { body: demand({ quantity: 1, date: jstDate(11), allowMultiLocation: true }) })
+check('デモデータの出品は、飲食店の仕入れ案に使われない', demoTomatoDay.length > 0 && !JSON.stringify(r.data.result).includes('デモ農園'), JSON.stringify(r.data.result?.best?.plan?.lines?.map((l) => l.producerName)))
+check('デモデータの場所は、他の生産者の選択肢に出ない', !(await farmC('/api/master')).data.locations.some((l) => l.name.includes('お試し用')))
+const demoPlaces = (await demo('/api/master')).data.locations
+check('デモ用アカウントには、自分のデモの場所が出る', demoPlaces.filter((l) => l.name.includes('お試し用')).length === 3)
+r = await demo('/api/listings', { body: listingBody({ pickupLocationId: demoPlaces.find((l) => l.status === 'APPROVED' && l.name.includes('お試し用')).id }) })
+check('デモ用アカウントで新しく登録した出品も、デモデータとして扱われる', r.status === 201 && r.data.listing.isDemo === true)
+check('他の生産者は、デモの場所を使って出品できない', (await farmC('/api/listings', { body: listingBody({ pickupLocationId: demoPlaces.find((l) => l.status === 'APPROVED' && l.name.includes('お試し用')).id }) })).status === 400)
+overview = (await admin('/api/admin')).data
+check('運営者の管理画面で、デモデータが区別できる', overview.producers.some((p) => p.isDemo) && overview.locations.some((l) => l.isDemo) && overview.listings.some((l) => l.isDemo))
+execSync('npx tsx scripts/demo-data.ts remove', { stdio: 'ignore' })
+const leftovers = await db.query('select (select count(*)::int from "Listing" where "isDemo") as l, (select count(*)::int from "PickupLocation" where "isDemo") as p, (select count(*)::int from "Producer" where "isDemo") as pr')
+check('デモデータを一括削除できる（出品・場所・アカウント）', leftovers.rows[0].l === 0 && leftovers.rows[0].p === 0 && leftovers.rows[0].pr === 0, JSON.stringify(leftovers.rows[0]))
+check('一括削除しても、通常のデータは残る', (await farmC('/api/listings')).data.listings.length > 0)
 
 console.log('入力検証・AI停止')
 check('数量が負の値なら拒否', (await restaurant('/api/plan', { body: demand({ quantity: -1 }) })).status === 400)

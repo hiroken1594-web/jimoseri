@@ -22,7 +22,10 @@ async function toListingData(body: ListingCreateInput, producerId: string) {
     prisma.item.findUnique({ where: { id: body.itemId } }),
     // 使えるのは、確認済みの場所か、自分が登録した場所（確認待ち）だけ
     prisma.pickupLocation.findFirst({
-      where: { id: body.pickupLocationId, OR: [{ status: 'APPROVED' }, { createdById: producerId, status: 'PENDING' }] },
+      where: {
+        id: body.pickupLocationId,
+        OR: [{ status: 'APPROVED', isDemo: false }, { createdById: producerId, status: { in: ['APPROVED', 'PENDING'] } }],
+      },
     }),
   ])
   if (!item) throw new HttpError(400, 'VALIDATION', '品目を選択してください。', { itemId: '品目を選択してください。' })
@@ -70,7 +73,11 @@ export const POST = handle(async (request) => {
   const actor = await requireActor(request, 'PRODUCER')
   const body = await readBody(request, listingCreateSchema)
   const data = await toListingData(body, actor.producerId!)
-  const row = await getPrisma().listing.create({ data: { producerId: actor.producerId!, ...data }, include: listingInclude })
+  // デモ用の生産者が登録した出品も、デモデータとして扱う（仕入れ案に混ぜない）
+  const row = await getPrisma().listing.create({
+    data: { producerId: actor.producerId!, ...data, isDemo: actor.user.producer?.isDemo ?? false },
+    include: listingInclude,
+  })
   return json({ listing: toListingDto(row) }, 201)
 })
 

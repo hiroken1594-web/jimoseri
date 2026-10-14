@@ -33,6 +33,7 @@ export const GET = handle(async (request) => {
       approvalStatus: p.approvalStatus,
       createdAtMs: p.createdAt.getTime(),
       listingCount: p._count.listings,
+      isDemo: p.isDemo,
     })),
     locations: locations.map((l) => ({
       id: l.id,
@@ -43,6 +44,7 @@ export const GET = handle(async (request) => {
       status: l.status,
       createdByName: l.createdBy?.farmName ?? null,
       createdAtMs: l.createdAt.getTime(),
+      isDemo: l.isDemo,
     })),
     listings: listings.map((l) => ({
       id: l.id,
@@ -55,6 +57,7 @@ export const GET = handle(async (request) => {
       pickupStartMs: l.pickupStart.getTime(),
       isPublished: l.isPublished,
       adminSuspended: l.adminSuspended,
+      isDemo: l.isDemo,
     })),
   }
   return json(overview)
