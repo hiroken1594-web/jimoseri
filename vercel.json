@@ -3,18 +3,35 @@
   "framework": "vite",
   "buildCommand": "npm run vercel-build",
   "outputDirectory": "dist",
-  "regions": ["sin1"],
+  "regions": [
+    "sin1"
+  ],
   "rewrites": [
-    { "source": "/api/auth/:path*", "destination": "/api/auth" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/api/:path*",
+      "destination": "/api/router"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
       ]
     }
   ]

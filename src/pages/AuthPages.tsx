@@ -1,10 +1,11 @@
+import { KeyRound, LogIn, UserPlus } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { isValidUsername, USERNAME_MAX, USERNAME_MIN } from '../../shared/limits.js'
 import type { SignupInput } from '../../shared/schemas.js'
 import { api, ApiError, errorMessage } from '../api.js'
 import { authClient, authErrorMessage } from '../auth-client.js'
-import { Choice, Field, Notice } from '../components/ui.js'
+import { Choice, Field, Notice, PageTitle } from '../components/ui.js'
 import { homePath, useSession } from '../session.js'
 
 export function PasswordInput({
@@ -64,7 +65,7 @@ export function RecoveryCodeNotice({ code, onDone, doneLabel }: { code: string; 
   }
   return (
     <>
-      <h1 className="page-title">リカバリーコードを控えてください</h1>
+      <PageTitle icon={KeyRound}>リカバリーコードを控えてください</PageTitle>
       <Notice kind="warn" title="このコードは、いま一度だけ表示されます">
         <p>
           パスワードを忘れたときに、このコードで新しいパスワードを設定できます。このサービスはメールを使わないため、
@@ -126,7 +127,7 @@ export function Login() {
 
   return (
     <form className="form" onSubmit={submit} noValidate>
-      <h1 className="page-title">ログイン</h1>
+      <PageTitle icon={LogIn}>ログイン</PageTitle>
       {error && <Notice kind="error">{<p>{error}</p>}</Notice>}
       <Field label="ユーザー名" required>
         <input className="input" type="text" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={username} onChange={(e) => setUsername(e.target.value)} />
@@ -183,7 +184,7 @@ export function Signup() {
   if (master.signupMode === 'closed') {
     return (
       <>
-        <h1 className="page-title">新規登録</h1>
+        <PageTitle icon={UserPlus}>新規登録</PageTitle>
         <Notice kind="info" title="新規登録は準備中です">
           <p>現在、一般の方の新規登録は受け付けていません。公開までしばらくお待ちください。</p>
         </Notice>
@@ -226,7 +227,7 @@ export function Signup() {
 
   return (
     <form className="form" onSubmit={submit} noValidate>
-      <h1 className="page-title">新規登録</h1>
+      <PageTitle icon={UserPlus}>新規登録</PageTitle>
       {master.signupMode === 'invite' && (
         <Notice kind="info" title="公開前の検証中です">
           <p>現在は、招待コードをお持ちの関係者の方だけが登録できます。</p>
@@ -369,7 +370,7 @@ export function ForgotPassword() {
   }
   return (
     <form className="form" onSubmit={submit} noValidate>
-      <h1 className="page-title">パスワードを忘れた方</h1>
+      <PageTitle icon={KeyRound}>パスワードを忘れた方</PageTitle>
       <p className="page-lead">登録したときに表示された「リカバリーコード」を使って、新しいパスワードを設定します。</p>
       {error && <Notice kind="error">{<p>{error}</p>}</Notice>}
       <Field label="ユーザー名" required>

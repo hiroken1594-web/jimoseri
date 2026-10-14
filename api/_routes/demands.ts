@@ -1,7 +1,7 @@
-import type { DemandHistoryItem } from '../shared/dto.js'
-import { requireActor } from './_lib/auth.js'
-import { handle, HttpError, json } from './_lib/http.js'
-import { getPrisma } from './_lib/prisma.js'
+import type { DemandHistoryItem } from '../../shared/dto.js'
+import { requireActor } from '../_lib/auth.js'
+import { handle, HttpError, json } from '../_lib/http.js'
+import { getPrisma } from '../_lib/prisma.js'
 
 // 自分の仕入れ希望の履歴。保存しているのは希望条件だけで、計算結果は保存していない。
 export const GET = handle(async (request) => {

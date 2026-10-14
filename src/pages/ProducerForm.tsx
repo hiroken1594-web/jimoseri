@@ -1,3 +1,4 @@
+import { CheckCircle2, Sprout } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { Grade, IrregularReason, Unit } from '../../shared/allocate.js'
@@ -6,7 +7,7 @@ import { formatQty, formatYen, IRREGULAR_LABEL, IRREGULAR_REASONS, UNIT_LABEL, U
 import type { ListingCreateInput, LocationCreateInput } from '../../shared/schemas.js'
 import { addDaysJst, formatWindow, jstDateString, jstTimeString } from '../../shared/time.js'
 import { api, ApiError, errorMessage } from '../api.js'
-import { Choice, Field, Loading, Notice } from '../components/ui.js'
+import { Choice, Field, Loading, Notice, PageTitle } from '../components/ui.js'
 import { parseNumber } from '../lib/forms.js'
 import { useSession } from '../session.js'
 
@@ -113,6 +114,8 @@ export function ProducerForm() {
   const editing = Boolean(id)
   const today = jstDateString(Date.now())
   const passed = (location.state as { listing?: ListingDto } | null)?.listing
+  // 「複製して登録」：前回の出品の内容を写し、受渡日だけ選び直してもらう（入力の手間を減らす）
+  const copyFrom = (location.state as { copyFrom?: ListingDto } | null)?.copyFrom
   const initial = (): Form => ({
     itemId: '',
     variety: '',
@@ -128,7 +131,9 @@ export function ProducerForm() {
     grade: 'REGULAR',
     irregularReason: '',
   })
-  const [form, setForm] = useState<Form | null>(() => (editing ? (passed ? formFromListing(passed, today) : null) : initial()))
+  const [form, setForm] = useState<Form | null>(() =>
+    editing ? (passed ? formFromListing(passed, today) : null) : copyFrom ? { ...formFromListing(copyFrom, today), pickupDate: addDaysJst(today, 1) } : initial(),
+  )
   const [loadError, setLoadError] = useState<string | null>(null)
   const [step, setStep] = useState<1 | 2>(1)
   const [errors, setErrors] = useState<Errors>({})
@@ -242,7 +247,7 @@ export function ProducerForm() {
     const live = saved.blockers.length === 0
     return (
       <>
-        <h1 className="page-title">{editing ? '変更しました' : '登録しました'}</h1>
+        <PageTitle icon={CheckCircle2}>{editing ? '変更しました' : '登録しました'}</PageTitle>
         {live ? (
           <Notice kind="success" title="飲食店への提案候補になりました">
             <p>条件が合う飲食店の仕入れ案に、他の生産者の分と組み合わせて表示されます。まだ売れたわけではなく、注文・予約も入っていません。</p>
@@ -311,7 +316,12 @@ export function ProducerForm() {
 
   return (
     <>
-      <h1 className="page-title">{editing ? '出品内容の編集' : '販売できるものを登録'}</h1>
+      <PageTitle icon={Sprout}>{editing ? '出品内容の編集' : '販売できるものを登録'}</PageTitle>
+      {copyFrom && !editing && (
+        <Notice kind="info" title="前回の出品を複製しました">
+          <p>品目・価格・受渡場所・時間などを写してあります。受渡日と数量を確かめて登録してください。</p>
+        </Notice>
+      )}
       <ol className="steps" aria-label="入力の進み具合">
         <li className={step === 1 ? 'is-current' : 'is-done'}>① 何を・いつ・どこで</li>
         <li className={step === 2 ? 'is-current' : ''}>② 量・価格・条件</li>

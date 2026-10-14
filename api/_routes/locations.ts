@@ -1,8 +1,8 @@
-import type { LocationDto } from '../shared/dto.js'
-import { locationCreateSchema } from '../shared/schemas.js'
-import { requireActor } from './_lib/auth.js'
-import { handle, HttpError, json, readBody } from './_lib/http.js'
-import { getPrisma } from './_lib/prisma.js'
+import type { LocationDto } from '../../shared/dto.js'
+import { locationCreateSchema } from '../../shared/schemas.js'
+import { requireActor } from '../_lib/auth.js'
+import { handle, HttpError, json, readBody } from '../_lib/http.js'
+import { getPrisma } from '../_lib/prisma.js'
 
 const MAX_PENDING_PER_PRODUCER = 5
 

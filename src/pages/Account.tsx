@@ -1,3 +1,4 @@
+import { UserRound } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { ReviewStatus, SessionUser } from '../../shared/dto.js'
@@ -5,7 +6,8 @@ import { isValidUsername, USERNAME_MAX, USERNAME_MIN } from '../../shared/limits
 import type { ProfileInput } from '../../shared/schemas.js'
 import { api, ApiError, errorMessage } from '../api.js'
 import { authClient, authErrorMessage } from '../auth-client.js'
-import { Field, Notice } from '../components/ui.js'
+import { AddressFields, type AddressValue } from '../components/AddressFields.js'
+import { Field, Notice, PageTitle } from '../components/ui.js'
 import { RecoveryCodeNotice } from './AuthPages.js'
 import { useSession } from '../session.js'
 
@@ -31,6 +33,13 @@ function ProfileSection({ user }: { user: SessionUser }) {
   const [publicEmail, setPublicEmail] = useState(p?.publicEmail ?? '')
   const [showEmail, setShowEmail] = useState(p?.showEmail ?? false)
   const [contactNote, setContactNote] = useState(p?.contactNote ?? '')
+  const [address, setAddress] = useState<AddressValue>({
+    postalCode: user.address.postalCode ?? '',
+    prefecture: user.address.prefecture ?? '',
+    city: user.address.city ?? '',
+    town: user.address.town ?? '',
+    addressLine: user.address.addressLine ?? '',
+  })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<Result>(null)
@@ -40,7 +49,7 @@ function ProfileSection({ user }: { user: SessionUser }) {
     setBusy(true)
     setErrors({})
     setResult(null)
-    const body: ProfileInput = { orgName, area }
+    const body: ProfileInput = { orgName, area, ...address }
     if (p) Object.assign(body, { publicPhone: publicPhone || null, showPhone, publicEmail: publicEmail || null, showEmail, contactNote: contactNote || null })
     try {
       const res = await api<{ user: SessionUser | null }>('/api/me', { method: 'PATCH', body })
@@ -71,6 +80,12 @@ function ProfileSection({ user }: { user: SessionUser }) {
       <Field label="地域（市区町村）" required error={errors.area}>
         <input className="input" type="text" maxLength={40} value={area} onChange={(e) => setArea(e.target.value)} />
       </Field>
+
+      <h3 className="sub-title">住所（任意・非公開）</h3>
+      <p className="field-hint">
+        運営者からの確認などのために登録できます。他の利用者には表示されず、地図にも出ません。受渡場所として公開する住所は「受渡拠点」で別に登録します。
+      </p>
+      <AddressFields idPrefix="profile" value={address} onChange={setAddress} errors={errors} />
 
       {p && (
         <>
@@ -287,7 +302,7 @@ export function Account() {
   if (!user) return null
   return (
     <>
-      <h1 className="page-title">マイページ</h1>
+      <PageTitle icon={UserRound}>マイページ</PageTitle>
       <ProfileSection user={user} />
       <UsernameSection user={user} />
       <PasswordSection />

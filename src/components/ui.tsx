@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { AlertTriangle, CheckCircle2, Info, XCircle, type LucideIcon } from 'lucide-react'
+import { useEffect, useRef, type ReactNode } from 'react'
 
 export function Field({
   label,
@@ -30,6 +31,14 @@ export function Field({
   )
 }
 
+const NOTICE_ICON: Record<'info' | 'warn' | 'error' | 'success', LucideIcon> = {
+  info: Info,
+  warn: AlertTriangle,
+  error: XCircle,
+  success: CheckCircle2,
+}
+
+/** お知らせ。種類は色だけでなくアイコンでも示す。 */
 export function Notice({
   kind = 'info',
   title,
@@ -39,8 +48,12 @@ export function Notice({
   title?: string
   children?: ReactNode
 }) {
+  const Icon = NOTICE_ICON[kind]
   return (
     <div className={`notice notice-${kind}`} role={kind === 'error' ? 'alert' : 'status'}>
+      <span className="notice-icon" aria-hidden="true">
+        <Icon />
+      </span>
       {title && <strong>{title}</strong>}
       {children}
     </div>
@@ -50,9 +63,37 @@ export function Notice({
 export function Loading({ label }: { label: string }) {
   return (
     <div className="loading" aria-busy="true" aria-live="polite">
-      <div className="spinner" />
+      <div className="spinner" aria-hidden="true" />
       <p>{label}</p>
     </div>
+  )
+}
+
+/** 一覧が空のときの案内。何をすればよいかを必ず添える。 */
+export function EmptyState({ illust = '🌱', title, children, action }: { illust?: string; title: string; children?: ReactNode; action?: ReactNode }) {
+  return (
+    <div className="empty">
+      <span className="empty-illust" aria-hidden="true">
+        {illust}
+      </span>
+      <p className="empty-title">{title}</p>
+      {children}
+      {action}
+    </div>
+  )
+}
+
+/** ページの見出し（アイコン付き）。画面を開いたときの読み上げの起点にもする。 */
+export function PageTitle({ icon: Icon, children }: { icon?: LucideIcon; children: ReactNode }) {
+  return (
+    <h1 className="page-title">
+      {Icon && (
+        <span className="page-title-icon" aria-hidden="true">
+          <Icon />
+        </span>
+      )}
+      <span>{children}</span>
+    </h1>
   )
 }
 
@@ -84,5 +125,57 @@ export function Choice<T extends string>({
         </button>
       ))}
     </div>
+  )
+}
+
+/** モーダルの確認ダイアログ（ブラウザ標準の dialog 要素。Esc で閉じ、フォーカスを閉じ込める） */
+export function Dialog({ open, onClose, labelledBy, children }: { open: boolean; onClose: () => void; labelledBy: string; children: ReactNode }) {
+  const ref = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    const dialog = ref.current
+    if (!dialog) return
+    if (open && !dialog.open) dialog.showModal()
+    if (!open && dialog.open) dialog.close()
+  }, [open])
+  return (
+    <dialog ref={ref} className="dialog" aria-labelledby={labelledBy} onClose={onClose} onCancel={onClose}>
+      {open && <div className="dialog-body">{children}</div>}
+    </dialog>
+  )
+}
+
+const ITEM_EMOJI: Record<string, string> = {
+  トマト: '🍅',
+  ミニトマト: '🍅',
+  なす: '🍆',
+  きゅうり: '🥒',
+  ピーマン: '🫑',
+  小松菜: '🥬',
+  ほうれん草: '🥬',
+  水菜: '🥬',
+  キャベツ: '🥬',
+  白菜: '🥬',
+  レタス: '🥬',
+  大根: '🥕',
+  にんじん: '🥕',
+  玉ねぎ: '🧅',
+  じゃがいも: '🥔',
+  さつまいも: '🍠',
+  かぼちゃ: '🎃',
+  ねぎ: '🌿',
+  米: '🌾',
+  栗: '🌰',
+}
+
+/** 品目のイラスト（絵文字）。読み上げでは品目名を別に伝えるので、装飾として扱う。 */
+export function itemEmoji(name: string): string {
+  return ITEM_EMOJI[name] ?? '🧺'
+}
+
+export function ItemIcon({ name }: { name: string }) {
+  return (
+    <span className="item-emoji" aria-hidden="true">
+      {itemEmoji(name)}
+    </span>
   )
 }

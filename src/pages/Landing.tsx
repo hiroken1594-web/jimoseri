@@ -1,3 +1,4 @@
+import { Layers, LogIn, Map as MapIcon, ShieldCheck, Sparkles, Sprout, Store, UserPlus } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Notice } from '../components/ui.js'
 import { useSession } from '../session.js'
@@ -17,6 +18,9 @@ export function Landing() {
           <br />
           お店の「1つの仕入れ案」にまとめます。
         </p>
+        <p className="hero-veg" aria-hidden="true">
+          🍅🥬🍆🥕🌽
+        </p>
       </header>
 
       {linkError && (
@@ -27,10 +31,12 @@ export function Landing() {
 
       <div className="actions">
         <Link className="btn btn-primary btn-large" to="/login">
+          <LogIn aria-hidden="true" />
           ログイン
         </Link>
         {master.signupMode !== 'closed' && (
           <Link className="btn btn-large" to="/signup">
+            <UserPlus aria-hidden="true" />
             はじめての方（新規登録）
           </Link>
         )}
@@ -41,18 +47,60 @@ export function Landing() {
         </Notice>
       )}
 
-      <section className="feature-list">
+      <section className="feature-list" aria-label="できること">
         <div className="feature role-restaurant">
-          <h2>
-            <span className="role-badge">飲食店</span>の方
-          </h2>
-          <p>ほしい食材・量・日を文章で伝えると、複数の生産者の在庫を組み合わせた仕入れ案を作ります。</p>
+          <span className="feature-icon" aria-hidden="true">
+            <Store />
+          </span>
+          <div>
+            <h2>飲食店の方</h2>
+            <p>ほしい食材・量・日を文章で伝えると、複数の生産者の在庫を組み合わせた仕入れ案を作ります。</p>
+          </div>
         </div>
         <div className="feature role-producer">
-          <h2>
-            <span className="role-badge">生産者</span>の方
-          </h2>
-          <p>販売に回せる量を登録すると、他の生産者の分と組み合わせて飲食店に提案されます。少量でも構いません。</p>
+          <span className="feature-icon" aria-hidden="true">
+            <Sprout />
+          </span>
+          <div>
+            <h2>生産者の方</h2>
+            <p>販売に回せる量を登録すると、他の生産者の分と組み合わせて飲食店に提案されます。少量でも構いません。</p>
+          </div>
+        </div>
+        <div className="feature role-restaurant">
+          <span className="feature-icon" aria-hidden="true">
+            <MapIcon />
+          </span>
+          <div>
+            <h2>地図で近くの農産物を探す</h2>
+            <p>お店の近くの受渡場所と、そこで受け取れる農産物を地図で探せます。</p>
+          </div>
+        </div>
+        <div className="feature role-restaurant">
+          <span className="feature-icon" aria-hidden="true">
+            <Layers />
+          </span>
+          <div>
+            <h2>スワイプで発見</h2>
+            <p>農産物を1枚ずつめくって、気になるものを保存できます。保存しても注文にはなりません。</p>
+          </div>
+        </div>
+        <div className="feature role-restaurant">
+          <span className="feature-icon" aria-hidden="true">
+            <Sparkles />
+          </span>
+          <div>
+            <h2>AIが条件を整理</h2>
+            <p>「明後日までにトマト10kg」のような文章から、品目・量・日付をAIが読み取ります。計算はプログラムが行います。</p>
+          </div>
+        </div>
+        <div className="feature role-admin">
+          <span className="feature-icon" aria-hidden="true">
+            <ShieldCheck />
+          </span>
+          <div>
+            <h2>安心して使えるしくみ</h2>
+            <p>生産者と受渡場所は運営者が確認してから公開します。気になる出品は通報できます。</p>
+          </div>
         </div>
       </section>
 

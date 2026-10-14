@@ -1,10 +1,10 @@
-import { toMilli } from '../shared/allocate.js'
-import type { AdminOverview } from '../shared/dto.js'
-import { adminActionSchema } from '../shared/schemas.js'
-import { issueRecoveryCode } from './_lib/accounts.js'
-import { requireActor } from './_lib/auth.js'
-import { handle, HttpError, json, readBody } from './_lib/http.js'
-import { getPrisma } from './_lib/prisma.js'
+import { toMilli } from '../../shared/allocate.js'
+import type { AdminOverview } from '../../shared/dto.js'
+import { adminActionSchema } from '../../shared/schemas.js'
+import { issueRecoveryCode } from '../_lib/accounts.js'
+import { requireActor } from '../_lib/auth.js'
+import { handle, HttpError, json, readBody } from '../_lib/http.js'
+import { getPrisma } from '../_lib/prisma.js'
 
 // 運営者用：審査と停止に必要な一覧。運営者（ADMIN）以外は使えない。
 export const GET = handle(async (request) => {

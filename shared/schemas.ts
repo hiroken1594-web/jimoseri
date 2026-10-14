@@ -57,9 +57,28 @@ export const recoveryReissueSchema = z.object({
   password: z.string().min(1, '現在のパスワードを入力してください').max(128),
 })
 
+const optionalAddressPart = (label: string, max: number) =>
+  z.string().trim().max(max, `${label}は${max}文字以内で入力してください`).nullable().optional()
+
+/** 住所の入力欄（郵便番号から自動入力し、手で直せる）。すべて任意。 */
+export const addressSchema = z.object({
+  postalCode: z
+    .string()
+    .trim()
+    .regex(/^(\d{3}-?\d{4})?$/, '郵便番号は7桁の数字で入力してください')
+    .nullable()
+    .optional(),
+  prefecture: optionalAddressPart('都道府県', 10),
+  city: optionalAddressPart('市区町村', 30),
+  town: optionalAddressPart('町域', 60),
+  addressLine: optionalAddressPart('番地・建物名', 100),
+})
+export type AddressInput = z.infer<typeof addressSchema>
+
 // プロフィールの変更。役割やユーザー名はここでは変更できない。
 export const profileSchema = z
   .object({
+    ...addressSchema.shape,
     orgName: shortText('店舗名・農園名', 40),
     area: shortText('地域', 40),
     // 以下は生産者のみ。公開用の連絡先（任意）
@@ -205,3 +224,12 @@ export type ListingCreateInput = z.infer<typeof listingCreateSchema>
 export type ListingPatchInput = z.infer<typeof listingPatchSchema>
 export type DemandInput = z.infer<typeof demandSchema>
 export type AiExtraction = z.infer<typeof aiExtractionSchema>
+
+// ---- 位置情報・住所 ----
+
+export const geoRequestSchema = z.discriminatedUnion('op', [
+  z.object({ op: z.literal('zip'), zip: z.string().max(20) }),
+  // 地名検索は、入力の確定時にだけ呼ぶ（自動補完には使わない）
+  z.object({ op: z.literal('search'), q: z.string().trim().min(2, '地名を2文字以上で入力してください').max(60, '地名は60文字以内で入力してください') }),
+])
+

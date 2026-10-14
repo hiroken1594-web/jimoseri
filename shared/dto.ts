@@ -27,6 +27,16 @@ export interface SessionUser {
   area: string
   suspended: boolean
   producer: ProducerProfile | null
+  /** 本人の住所（本人にだけ返す。他の利用者には公開しない） */
+  address: AddressDto
+}
+
+export interface AddressDto {
+  postalCode: string | null
+  prefecture: string | null
+  city: string | null
+  town: string | null
+  addressLine: string | null
 }
 
 export interface LocationDto {

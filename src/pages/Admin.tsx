@@ -1,10 +1,11 @@
+import { ShieldCheck } from 'lucide-react'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import type { AdminOverview, ReviewStatus } from '../../shared/dto.js'
 import { formatQtyUnit, formatYen } from '../../shared/labels.js'
 import type { AdminActionInput } from '../../shared/schemas.js'
 import { formatJstDateTime } from '../../shared/time.js'
 import { api, errorMessage } from '../api.js'
-import { Field, Loading, Notice } from '../components/ui.js'
+import { Field, Loading, Notice, PageTitle } from '../components/ui.js'
 
 const STATUS: Record<ReviewStatus, { label: string; className: string }> = {
   PENDING: { label: '確認待ち', className: 'chip chip-warn' },
@@ -114,7 +115,7 @@ export function Admin() {
 
   return (
     <>
-      <h1 className="page-title">審査・管理</h1>
+      <PageTitle icon={ShieldCheck}>審査・管理</PageTitle>
       {error && <Notice kind="error">{<p>{error}</p>}</Notice>}
       <Notice kind={pendingCount > 0 ? 'warn' : 'info'}>
         <p>{pendingCount > 0 ? `確認待ちが ${pendingCount} 件あります。` : '確認待ちはありません。'}</p>

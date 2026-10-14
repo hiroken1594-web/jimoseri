@@ -1,5 +1,5 @@
 // 認証 API（/api/auth/...）。登録・ログイン・メール確認・パスワード再設定などを Better Auth が処理する。
-import { getAuth } from './_lib/auth-server.js'
+import { getAuth } from '../_lib/auth-server.js'
 
 async function handler(request: Request): Promise<Response> {
   try {

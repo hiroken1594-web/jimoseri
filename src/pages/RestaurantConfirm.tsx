@@ -1,9 +1,10 @@
+import { ClipboardCheck } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import type { TimeMode, Unit } from '../../shared/allocate.js'
 import { UNIT_LABEL, UNITS } from '../../shared/labels.js'
 import { jstDateString } from '../../shared/time.js'
-import { Choice, Field, Notice } from '../components/ui.js'
+import { Choice, Field, Notice, PageTitle } from '../components/ui.js'
 import {
   emptyDemandForm,
   loadDraft,
@@ -50,7 +51,7 @@ export function RestaurantConfirm() {
 
   return (
     <>
-      <h1 className="page-title">{fromAi ? 'AIの整理結果を確認' : '条件を入力'}</h1>
+      <PageTitle icon={ClipboardCheck}>{fromAi ? 'AIの整理結果を確認' : '条件を入力'}</PageTitle>
       <p className="page-lead">
         {fromAi
           ? '読み取った内容に間違いがないか確認してください。文章に書かれていない項目は空欄のままにしています。'

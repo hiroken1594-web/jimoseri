@@ -1,3 +1,4 @@
+import { ClipboardList } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import type { AllocationLine, ExclusionReason, PointResult } from '../../shared/allocate.js'
@@ -6,7 +7,7 @@ import { buildCopyText, buildMultiCopyText, describeStockChanges } from '../../s
 import { EXCLUSION_LABEL, formatQtyUnit, formatYen, IRREGULAR_LABEL, UNIT_LABEL } from '../../shared/labels.js'
 import { DAY_MS, formatJstDate, formatJstDateTime, formatWindow, jstToMs } from '../../shared/time.js'
 import { api, errorMessage } from '../api.js'
-import { Loading, Notice } from '../components/ui.js'
+import { Loading, Notice, PageTitle } from '../components/ui.js'
 import { loadConfirmedDemand, saveDraft } from '../lib/forms.js'
 
 const CHECK_INTERVAL_MS = 20_000
@@ -136,7 +137,7 @@ export function RestaurantPlan() {
   if (error && !plan) {
     return (
       <>
-        <h1 className="page-title">仕入れ案</h1>
+        <PageTitle icon={ClipboardList}>仕入れ案</PageTitle>
         <Notice kind="error" title="仕入れ案を作れませんでした">
           <p>{error}</p>
         </Notice>
@@ -256,7 +257,7 @@ export function RestaurantPlan() {
 
   return (
     <div className={stale ? 'plan is-stale' : 'plan'}>
-      <h1 className="page-title">仕入れ案</h1>
+      <PageTitle icon={ClipboardList}>仕入れ案</PageTitle>
 
       {stale && (
         <Notice kind="error" title="在庫が更新されました。この案は古いため使えません">

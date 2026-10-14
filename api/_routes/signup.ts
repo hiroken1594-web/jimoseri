@@ -1,11 +1,11 @@
 import { APIError } from 'better-auth/api'
 import { createHash, timingSafeEqual } from 'node:crypto'
-import { signupSchema } from '../shared/schemas.js'
-import { issueRecoveryCode, registerAccount } from './_lib/accounts.js'
-import { signupMode } from './_lib/config.js'
-import { handle, HttpError, readBody } from './_lib/http.js'
-import { getPrisma } from './_lib/prisma.js'
-import { clientIp, requireAllowed } from './_lib/throttle.js'
+import { signupSchema } from '../../shared/schemas.js'
+import { issueRecoveryCode, registerAccount } from '../_lib/accounts.js'
+import { signupMode } from '../_lib/config.js'
+import { handle, HttpError, readBody } from '../_lib/http.js'
+import { getPrisma } from '../_lib/prisma.js'
+import { clientIp, requireAllowed } from '../_lib/throttle.js'
 
 function sameText(a: string, b: string): boolean {
   return timingSafeEqual(createHash('sha256').update(a).digest(), createHash('sha256').update(b).digest())

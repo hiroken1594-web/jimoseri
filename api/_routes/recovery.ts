@@ -1,8 +1,8 @@
-import { recoveryReissueSchema, recoveryResetSchema } from '../shared/schemas.js'
-import { checkPassword, issueRecoveryCode, setPassword, verifyRecoveryCode } from './_lib/accounts.js'
-import { requireActor } from './_lib/auth.js'
-import { handle, HttpError, json, readBody } from './_lib/http.js'
-import { clientIp, requireAllowed } from './_lib/throttle.js'
+import { recoveryReissueSchema, recoveryResetSchema } from '../../shared/schemas.js'
+import { checkPassword, issueRecoveryCode, setPassword, verifyRecoveryCode } from '../_lib/accounts.js'
+import { requireActor } from '../_lib/auth.js'
+import { handle, HttpError, json, readBody } from '../_lib/http.js'
+import { clientIp, requireAllowed } from '../_lib/throttle.js'
 
 // パスワードを忘れたとき：ユーザー名とリカバリーコードで、新しいパスワードを設定する（メールは使わない）。
 // 成功すると、使ったコードは無効になり、新しいコードを一度だけ返す。すべての端末のログインも無効になる。

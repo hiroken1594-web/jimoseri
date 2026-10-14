@@ -1,9 +1,10 @@
-import { profileSchema, usernameChangeSchema } from '../shared/schemas.js'
-import { checkPassword, placeholderEmail } from './_lib/accounts.js'
-import { getActor, requireActor } from './_lib/auth.js'
-import { handle, HttpError, json, readBody } from './_lib/http.js'
-import { requireAllowed } from './_lib/throttle.js'
-import { getPrisma } from './_lib/prisma.js'
+import { profileSchema, usernameChangeSchema } from '../../shared/schemas.js'
+import { formatZip, normalizeZip } from '../../shared/geo.js'
+import { checkPassword, placeholderEmail } from '../_lib/accounts.js'
+import { getActor, requireActor } from '../_lib/auth.js'
+import { handle, HttpError, json, readBody } from '../_lib/http.js'
+import { requireAllowed } from '../_lib/throttle.js'
+import { getPrisma } from '../_lib/prisma.js'
 
 // ログイン中の本人の情報。未ログインなら user: null。
 export const GET = handle(async (request) => {
@@ -19,12 +20,22 @@ export const PATCH = handle(async (request) => {
   const prisma = getPrisma()
 
   await prisma.user.update({ where: { id: actor.user.id }, data: { name: body.orgName, orgName: body.orgName, area: body.area } })
+  // 住所は任意。送られてきた項目だけを更新する（空欄は削除）
+  const zip = body.postalCode === undefined ? undefined : body.postalCode ? normalizeZip(body.postalCode) : null
+  const address = {
+    postalCode: zip === undefined ? undefined : zip ? formatZip(zip) : null,
+    prefecture: body.prefecture === undefined ? undefined : body.prefecture || null,
+    city: body.city === undefined ? undefined : body.city || null,
+    town: body.town === undefined ? undefined : body.town || null,
+    addressLine: body.addressLine === undefined ? undefined : body.addressLine || null,
+  }
   if (actor.producerId) {
     await prisma.producer.update({
       where: { id: actor.producerId },
       data: {
         farmName: body.orgName,
         area: body.area,
+        ...address,
         publicPhone: body.publicPhone === undefined ? undefined : body.publicPhone || null,
         showPhone: body.showPhone,
         publicEmail: body.publicEmail === undefined ? undefined : body.publicEmail || null,
@@ -33,7 +44,7 @@ export const PATCH = handle(async (request) => {
       },
     })
   } else if (actor.restaurantId) {
-    await prisma.restaurant.update({ where: { id: actor.restaurantId }, data: { name: body.orgName, area: body.area } })
+    await prisma.restaurant.update({ where: { id: actor.restaurantId }, data: { name: body.orgName, area: body.area, ...address } })
   }
   const next = await getActor(request)
   return json({ user: next?.user ?? null })

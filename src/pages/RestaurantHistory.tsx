@@ -1,3 +1,4 @@
+import { History } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { DemandHistoryItem } from '../../shared/dto.js'
@@ -5,7 +6,7 @@ import { formatQtyUnit, formatYen } from '../../shared/labels.js'
 import { toMilli } from '../../shared/allocate.js'
 import { formatJstDate, formatJstDateTime, jstDateString, jstToMs } from '../../shared/time.js'
 import { api, errorMessage } from '../api.js'
-import { Loading, Notice } from '../components/ui.js'
+import { EmptyState, Loading, Notice, PageTitle } from '../components/ui.js'
 import { formFromInput, saveConfirmedDemand, saveDraft } from '../lib/forms.js'
 
 export function RestaurantHistory() {
@@ -57,7 +58,7 @@ export function RestaurantHistory() {
 
   return (
     <>
-      <h1 className="page-title">仕入れ希望の履歴</h1>
+      <PageTitle icon={History}>仕入れ希望の履歴</PageTitle>
       <p className="page-lead">保存しているのは希望条件だけです。開くと、その時点の最新の在庫から仕入れ案を計算し直します。</p>
       {error && (
         <Notice kind="error">
@@ -66,13 +67,17 @@ export function RestaurantHistory() {
       )}
       {!demands && !error && <Loading label="履歴を読み込んでいます…" />}
       {demands && demands.length === 0 && (
-        <div className="empty">
-          <p className="empty-title">まだ履歴がありません</p>
+        <EmptyState
+          illust="📒"
+          title="まだ履歴がありません"
+          action={
+            <Link className="btn btn-primary" to="/restaurant">
+              仕入れ案を作る
+            </Link>
+          }
+        >
           <p>仕入れ案を作ると、その条件がここに残ります。</p>
-          <Link className="btn btn-primary" to="/restaurant">
-            仕入れ案を作る
-          </Link>
-        </div>
+        </EmptyState>
       )}
       {demands && demands.length > 0 && (
         <div className="cards">

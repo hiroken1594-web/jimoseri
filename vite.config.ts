@@ -13,13 +13,8 @@ function devApi(): Plugin {
         if (!req.url?.startsWith('/api/')) return next()
         try {
           const url = new URL(req.url, `http://${req.headers.host ?? 'localhost'}`)
-          // /api/auth/... はすべて api/auth.ts が処理する（本番では vercel.json の rewrites が同じ役割）
-          const name = url.pathname.startsWith('/api/auth/') ? 'auth' : url.pathname.slice('/api/'.length)
-          if (!/^[a-z][a-z-]*$/.test(name)) {
-            res.statusCode = 404
-            return res.end()
-          }
-          const mod = await server.ssrLoadModule(`/api/${name}.ts`)
+          // すべての /api/* を api/router.ts が振り分ける（本番では vercel.json の rewrites が同じ役割）
+          const mod = await server.ssrLoadModule('/api/router.ts')
           const handler = mod[req.method ?? 'GET']
           if (typeof handler !== 'function') {
             res.statusCode = 405

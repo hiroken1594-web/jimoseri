@@ -1,9 +1,10 @@
+import { History, Layers, Map as MapIcon, Sparkles } from 'lucide-react'
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import type { ExtractResponse } from '../../shared/dto.js'
 import { MAX_TEXT_LENGTH } from '../../shared/limits.js'
 import { api, errorMessage } from '../api.js'
-import { Loading, Notice } from '../components/ui.js'
+import { Loading, Notice, PageTitle } from '../components/ui.js'
 import { emptyDemandForm, formFromExtraction, loadDraft, saveDraft, type Draft } from '../lib/forms.js'
 import { useSession } from '../session.js'
 
@@ -68,8 +69,22 @@ export function RestaurantInput() {
 
   return (
     <>
-      <h1 className="page-title">仕入れ案を作る</h1>
+      <PageTitle icon={Sparkles}>仕入れ案を作る</PageTitle>
       <p className="page-lead">ほしい食材・量・いつまでに、をそのまま書いてください。1回の依頼は1品目です。</p>
+      <nav className="quick-links" aria-label="ほかの探し方">
+        <Link className="quick-link" to="/restaurant/map">
+          <MapIcon aria-hidden="true" />
+          地図で探す
+        </Link>
+        <Link className="quick-link" to="/restaurant/discover">
+          <Layers aria-hidden="true" />
+          スワイプで発見
+        </Link>
+        <Link className="quick-link" to="/restaurant/history">
+          <History aria-hidden="true" />
+          過去の条件
+        </Link>
+      </nav>
 
       {showResume && (
         <Notice kind="info" title="入力の続きから再開できます">

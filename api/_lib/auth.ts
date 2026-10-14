@@ -33,6 +33,7 @@ export async function getActor(request: Request): Promise<Actor | null> {
   }
 
   const p = user.producer
+  const org = p ?? user.restaurant
   return {
     user: {
       id: user.id,
@@ -52,6 +53,13 @@ export async function getActor(request: Request): Promise<Actor | null> {
             isDemo: p.isDemo,
           }
         : null,
+      address: {
+        postalCode: org?.postalCode ?? null,
+        prefecture: org?.prefecture ?? null,
+        city: org?.city ?? null,
+        town: org?.town ?? null,
+        addressLine: org?.addressLine ?? null,
+      },
     },
     producerId: p?.id ?? null,
     restaurantId: user.restaurant?.id ?? null,

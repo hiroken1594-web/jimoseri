@@ -1,10 +1,11 @@
+import { AlertTriangle, CalendarX, CheckCircle2, CircleSlash, Copy, PauseCircle, Pencil, Plus, Sprout, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { ListingBlocker, ListingDto } from '../../shared/dto.js'
 import { formatQty, formatYen, IRREGULAR_LABEL, UNIT_LABEL } from '../../shared/labels.js'
 import { DAY_MS, formatJstDateTime, formatWindow } from '../../shared/time.js'
 import { api, errorMessage } from '../api.js'
-import { Loading, Notice } from '../components/ui.js'
+import { EmptyState, ItemIcon, Loading, Notice, PageTitle } from '../components/ui.js'
 import { parseNumber } from '../lib/forms.js'
 import { useSession } from '../session.js'
 
@@ -85,20 +86,39 @@ function ListingCard({
   }
 
   // デモデータは仕入れ案に使われないため、「提案候補」とは表示しない
+  let StateIcon: LucideIcon = CheckCircle2
   let state = listing.isDemo ? { label: '公開中（お試し用）', className: 'chip chip-live' } : { label: '公開中・提案候補', className: 'chip chip-live' }
-  if (expired) state = { label: '受渡日時を過ぎました', className: 'chip chip-off' }
-  else if (!listing.isPublished) state = { label: '公開停止中', className: 'chip chip-off' }
-  else if (listing.blockers.length > 0) state = { label: '提案の対象外', className: 'chip chip-warn' }
-  else if (soldOut) state = { label: '数量0・候補外', className: 'chip chip-off' }
+  if (expired) {
+    state = { label: '受渡日時を過ぎました', className: 'chip chip-off' }
+    StateIcon = CalendarX
+  }
+  else if (!listing.isPublished) {
+    state = { label: '公開停止中', className: 'chip chip-off' }
+    StateIcon = PauseCircle
+  }
+  else if (listing.blockers.length > 0) {
+    state = { label: '提案の対象外', className: 'chip chip-warn' }
+    StateIcon = AlertTriangle
+  }
+  else if (soldOut) {
+    state = { label: '数量0・候補外', className: 'chip chip-off' }
+    StateIcon = CircleSlash
+  }
 
   return (
     <article className={expired || !listing.isPublished ? 'card listing-card is-off' : 'card listing-card'}>
       <header className="card-head">
         <h3>
-          {listing.itemName}
-          {listing.variety && <small>（{listing.variety}）</small>}
+          <ItemIcon name={listing.itemName} />
+          <span>
+            {listing.itemName}
+            {listing.variety && <small>（{listing.variety}）</small>}
+          </span>
         </h3>
-        <span className={state.className}>{state.label}</span>
+        <span className={state.className}>
+          <StateIcon aria-hidden="true" />
+          {state.label}
+        </span>
       </header>
       <p className="chips">
         {listing.grade === 'IRREGULAR' ? (
@@ -191,7 +211,12 @@ function ListingCard({
           </button>
         )}
         <Link className="btn" to={`/producer/edit/${listing.id}`} state={{ listing }}>
+          <Pencil aria-hidden="true" />
           内容を編集
+        </Link>
+        <Link className="btn" to="/producer/new" state={{ copyFrom: listing }}>
+          <Copy aria-hidden="true" />
+          複製して登録
         </Link>
         <button className="btn btn-quiet" onClick={remove} disabled={busy}>
           削除
@@ -225,7 +250,7 @@ export function ProducerList() {
 
   return (
     <>
-      <h1 className="page-title">販売できるもの</h1>
+      <PageTitle icon={Sprout}>販売できるもの</PageTitle>
       {user?.producer?.isDemo && (
         <Notice kind="info" title="デモデータ（お試し用）のアカウントです">
           <p>
@@ -264,10 +289,18 @@ export function ProducerList() {
       )}
       {!listings && !error && <Loading label="出品を読み込んでいます…" />}
       {listings && listings.length === 0 && (
-        <div className="empty">
-          <p className="empty-title">まだ出品がありません</p>
+        <EmptyState
+          illust="🧺"
+          title="まだ出品がありません"
+          action={
+            <Link className="btn btn-primary" to="/producer/new">
+              <Plus aria-hidden="true" />
+              販売できるものを登録
+            </Link>
+          }
+        >
           <p>選別や数量の確認が終わったら、販売に回せる量を登録してください。少量でも、他の生産者の分と組み合わせて提案されます。</p>
-        </div>
+        </EmptyState>
       )}
       {listings && listings.length > 0 && (
         <div className="cards">

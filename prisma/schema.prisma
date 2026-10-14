@@ -3,8 +3,8 @@
 // ログインはユーザー名＋パスワード。メールアドレスは収集せず、メールも送らない。
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider            = "prisma-client"
+  output              = "../generated/prisma"
   // Vercel Functions（ESM）で読み込めるよう、生成コード内の import に拡張子を付ける
   importFileExtension = "js"
 }
@@ -54,17 +54,17 @@ enum TimeMode {
 // ---- 認証（Better Auth） ----
 
 model User {
-  id            String   @id
-  name          String
+  id              String   @id
+  name            String
   // ログインに使うユーザー名（半角英小文字・数字・_）
-  username        String? @unique
+  username        String?  @unique
   displayUsername String?
   // Better Auth が内部で必要とする欄。実在しない形式の値（〜@users.jimoseri.invalid）を入れ、メールは送らない。
-  email         String   @unique
-  emailVerified Boolean  @default(false)
-  image         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  email           String   @unique
+  emailVerified   Boolean  @default(false)
+  image           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   // 役割は登録時にサーバーが確定し、本人は変更できない。ADMIN は管理用コマンドでのみ付与する。
   role       Role?
@@ -79,8 +79,9 @@ model User {
   accounts     Account[]
   recoveryCode RecoveryCode?
   producer     Producer?
-  restaurant Restaurant?
-  aiUsages   AiUsage[]
+  restaurant   Restaurant?
+  aiUsages     AiUsage[]
+  reports      Report[]
 
   @@map("user")
 }
@@ -163,31 +164,44 @@ model RateLimit {
 // ---- 業務データ ----
 
 model Restaurant {
-  id      String   @id @default(cuid())
-  userId  String   @unique
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name    String
-  area    String
-  demands Demand[]
+  id          String     @id @default(cuid())
+  userId      String     @unique
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  area        String
+  // 住所（任意・本人と運営者だけが見る。他の利用者には公開しない）
+  postalCode  String?
+  prefecture  String?
+  city        String?
+  town        String?
+  addressLine String?
+  demands     Demand[]
+  favorites   Favorite[]
 }
 
 model Producer {
-  id             String       @id @default(cuid())
-  userId         String       @unique
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String           @id @default(cuid())
+  userId         String           @unique
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   farmName       String
   area           String
   // 登録直後は承認待ち。承認済みの生産者の出品だけが仕入れ案に使われる。
-  approvalStatus ReviewStatus @default(PENDING)
+  approvalStatus ReviewStatus     @default(PENDING)
   // 公開用の連絡先（任意）。show〜 が true の項目だけ飲食店に表示する。
   publicPhone    String?
-  showPhone      Boolean      @default(false)
+  showPhone      Boolean          @default(false)
   publicEmail    String?
-  showEmail      Boolean      @default(false)
+  showEmail      Boolean          @default(false)
   contactNote    String?
+  // 住所（任意・本人と運営者だけが見る。他の利用者には公開しない）
+  postalCode     String?
+  prefecture     String?
+  city           String?
+  town           String?
+  addressLine    String?
   // デモデータ（お試し用）の生産者。出品は飲食店の仕入れ案に使われない。
-  isDemo         Boolean      @default(false)
-  createdAt      DateTime     @default(now())
+  isDemo         Boolean          @default(false)
+  createdAt      DateTime         @default(now())
   listings       Listing[]
   locations      PickupLocation[]
 }
@@ -197,8 +211,19 @@ model PickupLocation {
   id           String       @id @default(cuid())
   name         String
   municipality String
+  // 飲食店に表示する住所・目印（番地まで書くかは登録者が決める）
   address      String
   note         String       @default("")
+  // 郵便番号から自動入力した住所の内訳（公開範囲は address と同じ）
+  postalCode   String?
+  prefecture   String?
+  town         String?
+  // 地図上の位置。showOnMap が true で、運営者が確認済みの場所だけを地図・半径検索に出す
+  latitude     Float?
+  longitude    Float?
+  showOnMap    Boolean      @default(false)
+  // 受け取りできる曜日・時間の目安（例：平日10〜16時）
+  hours        String       @default("")
   // 新しい場所は運営者の確認後に利用可能になる
   status       ReviewStatus @default(PENDING)
   createdById  String?
@@ -248,6 +273,7 @@ model Listing {
   isDemo           Boolean          @default(false)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
+  favorites        Favorite[]
 
   @@index([itemId, isPublished])
   @@index([producerId])
@@ -287,4 +313,77 @@ model AiUsage {
   count  Int    @default(0)
 
   @@unique([userId, day])
+}
+
+// 飲食店の「気になる」（お気に入り）。注文・予約・在庫の確保ではない。出品が削除されると一緒に消える。
+model Favorite {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  listingId    String
+  listing      Listing    @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([restaurantId, listingId])
+}
+
+enum ReportTarget {
+  LISTING
+  PRODUCER
+  RESTAURANT
+}
+
+enum ReportReason {
+  FALSE_INFO
+  INAPPROPRIATE
+  NUISANCE
+  FRAUD
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  REJECTED
+}
+
+// 利用者からの通報。内容は運営者だけが見る。通報した人は通報された側に知らされない。
+model Report {
+  id          String         @id @default(cuid())
+  reporterId  String?
+  reporter    User?          @relation(fields: [reporterId], references: [id], onDelete: SetNull)
+  targetType  ReportTarget
+  targetId    String
+  // 通報時点の対象の名前（対象が削除されても運営者が分かるように残す）
+  targetLabel String
+  reason      ReportReason
+  detail      String         @default("")
+  status      ReportStatus   @default(OPEN)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  actions     ReportAction[]
+
+  @@index([status, createdAt])
+  @@index([reporterId, targetType, targetId])
+}
+
+// 通報への対応の記録（状態の変更・停止などの操作）
+model ReportAction {
+  id        String   @id @default(cuid())
+  reportId  String
+  report    Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  actorName String
+  action    String
+  note      String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([reportId])
+}
+
+// 郵便番号・地名検索の結果の一時保存（外部サービスへの問い合わせ回数を減らす）
+model GeoCache {
+  key       String   @id
+  value     Json
+  createdAt DateTime @default(now())
 }
