@@ -45,6 +45,10 @@ export const GET = handle(async (request) => {
       createdByName: l.createdBy?.farmName ?? null,
       createdAtMs: l.createdAt.getTime(),
       isDemo: l.isDemo,
+      showOnMap: l.showOnMap,
+      latitude: l.latitude,
+      longitude: l.longitude,
+      hours: l.hours,
     })),
     listings: listings.map((l) => ({
       id: l.id,

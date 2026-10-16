@@ -179,6 +179,19 @@ export function Admin() {
                   </dd>
                 </div>
                 <div>
+                  <dt>地図</dt>
+                  <dd>
+                    {l.showOnMap ? '飲食店向けの地図に表示する' : '地図に表示しない'}
+                    {l.latitude !== null && l.longitude !== null ? (
+                      <a className="block" href={`https://maps.gsi.go.jp/#17/${l.latitude}/${l.longitude}/`} target="_blank" rel="noopener noreferrer">
+                        位置を地理院地図で確認（新しいタブ）
+                      </a>
+                    ) : (
+                      <small className="block">位置は未指定</small>
+                    )}
+                  </dd>
+                </div>
+                <div>
                   <dt>登録者</dt>
                   <dd>
                     {l.createdByName ?? '（退会済み）'}／{formatJstDateTime(l.createdAtMs)}

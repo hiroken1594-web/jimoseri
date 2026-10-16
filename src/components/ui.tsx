@@ -1,5 +1,31 @@
 import { AlertTriangle, CheckCircle2, Info, XCircle, type LucideIcon } from 'lucide-react'
-import { useEffect, useRef, type ReactNode } from 'react'
+import { Children, cloneElement, isValidElement, useEffect, useId, useRef, type ReactElement, type ReactNode } from 'react'
+
+const FORM_TAGS = new Set(['input', 'select', 'textarea'])
+
+/** 子要素の中の最初の入力欄に、見出し・説明・エラーとの結び付け（id・aria-describedby・aria-invalid）を付ける */
+function connectInput(children: ReactNode, id: string, describedBy: string | undefined, invalid: boolean): { node: ReactNode; connected: boolean } {
+  let connected = false
+  const visit = (node: ReactNode): ReactNode =>
+    Children.map(node, (child) => {
+      if (connected || !isValidElement(child)) return child
+      const element = child as ReactElement<Record<string, unknown>>
+      if (typeof element.type === 'string' && FORM_TAGS.has(element.type)) {
+        connected = true
+        return cloneElement(element, {
+          id: (element.props.id as string | undefined) ?? id,
+          'aria-describedby': [element.props['aria-describedby'], describedBy].filter(Boolean).join(' ') || undefined,
+          'aria-invalid': invalid || undefined,
+        })
+      }
+      if (typeof element.type === 'string' && element.props.children) {
+        return cloneElement(element, {}, visit(element.props.children as ReactNode))
+      }
+      return child
+    })
+  const result = visit(children)
+  return { node: result, connected }
+}
 
 export function Field({
   label,
@@ -14,21 +40,44 @@ export function Field({
   error?: string
   children: ReactNode
 }) {
+  const baseId = useId()
+  const hintId = hint ? `${baseId}-hint` : undefined
+  const errorId = error ? `${baseId}-error` : undefined
+  const describedBy = [hintId, errorId].filter(Boolean).join(' ') || undefined
+  const { node, connected } = connectInput(children, `${baseId}-input`, describedBy, Boolean(error))
+  // 入力欄があれば <label for> で結び付ける。ボタンの選択肢などは、それぞれに名前を付けている。
+  const LabelTag = connected ? 'label' : 'div'
   return (
     <div className={error ? 'field field-invalid' : 'field'}>
-      <div className="field-label">
+      <LabelTag className="field-label" {...(connected ? { htmlFor: findId(node) ?? `${baseId}-input` } : {})}>
         <span>{label}</span>
         {required ? <span className="tag tag-required">必須</span> : <span className="tag tag-optional">任意</span>}
-      </div>
-      {children}
-      {hint && <p className="field-hint">{hint}</p>}
+      </LabelTag>
+      {node}
+      {hint && (
+        <p className="field-hint" id={hintId}>
+          {hint}
+        </p>
+      )}
       {error && (
-        <p className="field-error" role="alert">
+        <p className="field-error" role="alert" id={errorId}>
           {error}
         </p>
       )}
     </div>
   )
+}
+
+/** 結び付けた入力欄の id を探す（呼び出し側が id を指定している場合はそれを使う） */
+function findId(node: ReactNode): string | undefined {
+  let found: string | undefined
+  Children.forEach(node, (child) => {
+    if (found || !isValidElement(child)) return
+    const element = child as ReactElement<Record<string, unknown>>
+    if (typeof element.type === 'string' && FORM_TAGS.has(element.type)) found = element.props.id as string | undefined
+    else if (element.props.children) found = findId(element.props.children as ReactNode)
+  })
+  return found
 }
 
 const NOTICE_ICON: Record<'info' | 'warn' | 'error' | 'success', LucideIcon> = {

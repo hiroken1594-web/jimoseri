@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import type { Role } from '../shared/dto.js'
 import { Layout, PublicLayout } from './components/Layout.js'
@@ -14,6 +14,17 @@ import { RestaurantHistory } from './pages/RestaurantHistory.js'
 import { RestaurantInput } from './pages/RestaurantInput.js'
 import { RestaurantPlan } from './pages/RestaurantPlan.js'
 import { homePath, useSession } from './session.js'
+import { Loading } from './components/ui.js'
+
+// 地図を使う画面は、地図のライブラリと一緒に必要になったときだけ読み込む（最初の表示を軽くする）
+const RestaurantMap = lazy(() => import('./pages/RestaurantMap.js').then((m) => ({ default: m.RestaurantMap })))
+const ListingDetail = lazy(() => import('./pages/ListingDetail.js').then((m) => ({ default: m.ListingDetail })))
+const ProducerLocations = lazy(() => import('./pages/ProducerLocations.js').then((m) => ({ default: m.ProducerLocations })))
+const RestaurantDiscover = lazy(() => import('./pages/RestaurantDiscover.js').then((m) => ({ default: m.RestaurantDiscover })))
+const RestaurantFavorites = lazy(() => import('./pages/RestaurantFavorites.js').then((m) => ({ default: m.RestaurantFavorites })))
+const AdminReports = lazy(() => import('./pages/AdminReports.js').then((m) => ({ default: m.AdminReports })))
+
+const lazyPage = (node: ReactNode) => <Suspense fallback={<Loading label="読み込んでいます…" />}>{node}</Suspense>
 
 // 画面の出し分け。実際の権限確認は API 側で必ず行う。
 function Require({ role, children }: { role?: Role; children: ReactNode }) {
@@ -45,6 +56,12 @@ export function App() {
       <Route path="/restaurant/confirm" element={<Require role="RESTAURANT"><RestaurantConfirm /></Require>} />
       <Route path="/restaurant/plan" element={<Require role="RESTAURANT"><RestaurantPlan /></Require>} />
       <Route path="/restaurant/history" element={<Require role="RESTAURANT"><RestaurantHistory /></Require>} />
+      <Route path="/restaurant/map" element={<Require role="RESTAURANT">{lazyPage(<RestaurantMap />)}</Require>} />
+      <Route path="/restaurant/discover" element={<Require role="RESTAURANT">{lazyPage(<RestaurantDiscover />)}</Require>} />
+      <Route path="/restaurant/favorites" element={<Require role="RESTAURANT">{lazyPage(<RestaurantFavorites />)}</Require>} />
+      <Route path="/restaurant/listing/:id" element={<Require role="RESTAURANT">{lazyPage(<ListingDetail />)}</Require>} />
+      <Route path="/producer/locations" element={<Require role="PRODUCER">{lazyPage(<ProducerLocations />)}</Require>} />
+      <Route path="/admin/reports" element={<Require role="ADMIN">{lazyPage(<AdminReports />)}</Require>} />
       <Route path="/producer" element={<Require role="PRODUCER"><ProducerList /></Require>} />
       <Route path="/producer/new" element={<Require role="PRODUCER"><ProducerForm /></Require>} />
       <Route path="/producer/edit/:id" element={<Require role="PRODUCER"><ProducerForm /></Require>} />

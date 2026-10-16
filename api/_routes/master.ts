@@ -4,6 +4,7 @@ import { MIN_PASSWORD_LENGTH } from '../_lib/auth-server.js'
 import { operatorInfo, signupMode, supportPhone } from '../_lib/config.js'
 import { handle, json } from '../_lib/http.js'
 import { isAiConfigured } from '../_lib/openai.js'
+import { toLocationDto } from '../_lib/places.js'
 import { getPrisma } from '../_lib/prisma.js'
 
 // 画面の選択肢と、公開してよい設定。秘密情報は含めない。
@@ -28,15 +29,7 @@ export const GET = handle(async (request) => {
   const data: MasterData = {
     items: items.map((i) => ({ id: i.id, name: i.name })),
     locations: producerId
-      ? [...approved, ...mine].map((l) => ({
-          id: l.id,
-          name: l.name,
-          municipality: l.municipality,
-          address: l.address,
-          note: l.note,
-          status: l.status,
-          mine: l.createdById === producerId,
-        }))
+      ? [...approved, ...mine].map((l) => toLocationDto(l, producerId))
       : [],
     municipalities: [...new Set(approved.filter((l) => !l.isDemo).map((l) => l.municipality))],
     aiEnabled: isAiConfigured(),

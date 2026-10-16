@@ -1904,6 +1904,8 @@ select.input {
 
 .swipe-actions .btn {
   min-height: 60px;
+  padding: 8px 10px;
+  white-space: nowrap;
 }
 
 .round-btn {

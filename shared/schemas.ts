@@ -103,12 +103,44 @@ export const profileSchema = z
     }
   })
 
-export const locationCreateSchema = z.object({
-  name: shortText('受渡場所の名称', 40),
-  municipality: shortText('市区町村', 20),
-  address: shortText('住所・目印', 100),
-  note: z.string().trim().max(100, '補足は100文字以内で入力してください'),
+const latitude = z.number({ error: '地図で位置を指定してください' }).min(20).max(46)
+const longitude = z.number({ error: '地図で位置を指定してください' }).min(122).max(154)
+
+// 受渡拠点。地図に出すのは showOnMap が true で、位置があり、運営者が確認したものだけ。
+export const locationCreateSchema = z
+  .object({
+    name: shortText('受渡場所の名称', 40),
+    municipality: shortText('市区町村', 20),
+    address: shortText('住所・目印', 100),
+    note: z.string().trim().max(100, '補足は100文字以内で入力してください'),
+    postalCode: z.string().trim().regex(/^(\d{3}-?\d{4})?$/, '郵便番号は7桁の数字で入力してください').nullable().optional(),
+    prefecture: z.string().trim().max(10).nullable().optional(),
+    town: z.string().trim().max(60).nullable().optional(),
+    latitude: latitude.nullable().optional(),
+    longitude: longitude.nullable().optional(),
+    showOnMap: z.boolean().optional(),
+    hours: z.string().trim().max(60, '受取できる日時の目安は60文字以内で入力してください').optional(),
+  })
+  .superRefine((v, ctx) => {
+    if ((v.latitude == null) !== (v.longitude == null)) {
+      ctx.addIssue({ code: 'custom', path: ['latitude'], message: '地図で位置を指定してください' })
+    }
+    if (v.showOnMap && (v.latitude == null || v.longitude == null)) {
+      ctx.addIssue({ code: 'custom', path: ['showOnMap'], message: '地図に表示するには、地図で位置を指定してください' })
+    }
+  })
+
+// 地図・一覧での検索（飲食店）。検索の中心は送るだけで、サーバーには保存しない。
+export const marketSearchSchema = z.object({
+  center: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).nullable(),
+  radiusKm: z.union([z.literal(1), z.literal(3), z.literal(5), z.literal(10), z.literal(20), z.literal(50), z.null()]),
+  itemId: z.string().max(40).nullable().optional(),
+  maxPriceYen: z.number().int().min(1).max(1_000_000).nullable().optional(),
+  minQuantity: z.number().positive().max(100_000).nullable().optional(),
+  irregular: z.enum(['any', 'exclude', 'only']).optional(),
+  municipality: z.string().trim().max(20).nullable().optional(),
 })
+export type MarketSearchInput = z.infer<typeof marketSearchSchema>
 
 export const adminActionSchema = z.discriminatedUnion('target', [
   z.object({ target: z.literal('producer'), id, action: z.enum(['approve', 'suspend']) }),
@@ -233,3 +265,31 @@ export const geoRequestSchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('search'), q: z.string().trim().min(2, '地名を2文字以上で入力してください').max(60, '地名は60文字以内で入力してください') }),
 ])
 
+
+// ---- 気になる（お気に入り）・通報 ----
+
+export const favoriteSchema = z.object({ listingId: z.string().min(1).max(40) })
+
+export const REPORT_REASONS = ['FALSE_INFO', 'INAPPROPRIATE', 'NUISANCE', 'FRAUD', 'OTHER'] as const
+export const reportCreateSchema = z
+  .object({
+    targetType: z.enum(['LISTING', 'PRODUCER', 'RESTAURANT']),
+    targetId: z.string().min(1).max(40),
+    reason: z.enum(REPORT_REASONS, { error: '通報の理由を選んでください' }),
+    detail: z.string().trim().max(500, '詳細は500文字以内で入力してください').optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.reason === 'OTHER' && !v.detail) {
+      ctx.addIssue({ code: 'custom', path: ['detail'], message: '「その他」を選んだ場合は、詳細を入力してください' })
+    }
+  })
+
+export const reportUpdateSchema = z.object({
+  id: z.string().min(1).max(40),
+  status: z.enum(['OPEN', 'IN_REVIEW', 'RESOLVED', 'REJECTED']).optional(),
+  note: z.string().trim().max(500, 'メモは500文字以内で入力してください').optional(),
+  // 対象（出品・生産者・利用者）を停止する／停止を解除する
+  targetAction: z.enum(['suspend', 'restore']).optional(),
+})
+export type ReportCreateInput = z.infer<typeof reportCreateSchema>
+export type ReportUpdateInput = z.infer<typeof reportUpdateSchema>

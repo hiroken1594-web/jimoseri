@@ -48,6 +48,66 @@ export interface LocationDto {
   status: ReviewStatus
   /** 自分が登録した場所か */
   mine: boolean
+  postalCode: string | null
+  prefecture: string | null
+  town: string | null
+  /** 位置。自分の場所か、地図への公開を許可した場所のときだけ入る */
+  latitude: number | null
+  longitude: number | null
+  showOnMap: boolean
+  hours: string
+  /** 自分の場所を使っている出品の数（自分の場所のときだけ） */
+  listingCount?: number
+}
+
+/** 地図・一覧に出す出品（承認済み・公開中・在庫あり・期限内のものだけ） */
+export interface MarketListing {
+  id: string
+  itemId: string
+  itemName: string
+  variety: string | null
+  grade: Grade
+  irregularReason: IrregularReason | null
+  quantityMilli: number
+  unit: Unit
+  unitPriceYen: number
+  minMilli: number
+  stepMilli: number
+  pickupStartMs: number
+  pickupEndMs: number
+  producerId: string
+  producerName: string
+  updatedAtMs: number
+  isFavorite: boolean
+}
+
+/** 地図・一覧に出す受渡拠点（地図への公開を許可され、運営者が確認したものだけ） */
+export interface MarketLocation {
+  id: string
+  name: string
+  municipality: string
+  address: string
+  note: string
+  hours: string
+  latitude: number
+  longitude: number
+  /** 検索の中心からの直線距離（km）。中心を指定しないときは null */
+  distanceKm: number | null
+  listings: MarketListing[]
+}
+
+export interface MarketSearchResponse {
+  locations: MarketLocation[]
+  /** 半径の外にあったため除外した拠点の数（「半径を広げる」提案に使う） */
+  outsideCount: number
+  searchedAtMs: number
+}
+
+/** 出品の詳細（飲食店向け） */
+export interface ListingDetail extends MarketListing {
+  producerArea: string
+  contact: PublicContact | null
+  location: { id: string; name: string; municipality: string; address: string; note: string; hours: string; latitude: number | null; longitude: number | null }
 }
 
 export interface MasterData {
@@ -177,6 +237,10 @@ export interface AdminOverview {
     createdByName: string | null
     createdAtMs: number
     isDemo: boolean
+    showOnMap: boolean
+    latitude: number | null
+    longitude: number | null
+    hours: string
   }[]
   listings: {
     id: string
@@ -195,4 +259,37 @@ export interface AdminOverview {
 
 export interface ApiErrorBody {
   error: { code: string; message: string; fields?: Record<string, string> }
+}
+
+export interface FavoriteItem {
+  listingId: string
+  savedAtMs: number
+  itemName: string
+  producerName: string
+  /** 現在も掲載中か（公開停止・期限切れ・在庫0などのときは false） */
+  available: boolean
+  /** 掲載中のときだけ、最新の情報を入れる */
+  listing: MarketListing | null
+  locationName: string | null
+}
+
+export type ReportTargetType = 'LISTING' | 'PRODUCER' | 'RESTAURANT'
+export type ReportReason = 'FALSE_INFO' | 'INAPPROPRIATE' | 'NUISANCE' | 'FRAUD' | 'OTHER'
+export type ReportStatus = 'OPEN' | 'IN_REVIEW' | 'RESOLVED' | 'REJECTED'
+
+/** 運営者向けの通報の一覧（一般の利用者には返さない） */
+export interface ReportItem {
+  id: string
+  targetType: ReportTargetType
+  targetId: string
+  targetLabel: string
+  /** 対象のいまの状態（停止中か、削除済みか） */
+  targetState: 'ACTIVE' | 'SUSPENDED' | 'DELETED'
+  reason: ReportReason
+  detail: string
+  status: ReportStatus
+  reporterName: string
+  createdAtMs: number
+  updatedAtMs: number
+  actions: { actorName: string; action: string; note: string; createdAtMs: number }[]
 }

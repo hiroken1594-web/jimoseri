@@ -40,9 +40,9 @@ export function distanceKm(a: LatLng, b: LatLng): number {
   return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)))
 }
 
-/** 半径の中か（境界ちょうどは「中」に含める）。radiusKm が null なら常に true。 */
+/** 半径の中か（境界ちょうど（1mm以内の誤差を含む）は「中」に含める）。radiusKm が null なら常に true。 */
 export function withinRadius(center: LatLng, point: LatLng, radiusKm: number | null): boolean {
-  return radiusKm === null || distanceKm(center, point) <= radiusKm + 1e-9
+  return radiusKm === null || distanceKm(center, point) <= radiusKm + 1e-6
 }
 
 export function formatDistance(km: number): string {

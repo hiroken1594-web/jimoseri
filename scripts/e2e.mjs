@@ -392,6 +392,160 @@ const leftovers = await db.query('select (select count(*)::int from "Listing" wh
 check('デモデータを一括削除できる（出品・場所・アカウント）', leftovers.rows[0].l === 0 && leftovers.rows[0].p === 0 && leftovers.rows[0].pr === 0, JSON.stringify(leftovers.rows[0]))
 check('一括削除しても、通常のデータは残る', (await farmC('/api/listings')).data.listings.length > 0)
 
+console.log('受渡拠点・地図・半径検索')
+const rad = (d) => (d * Math.PI) / 180
+const dist = (a, b) => {
+  const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2
+  return 2 * 6371.0088 * Math.asin(Math.min(1, Math.sqrt(h)))
+}
+const OSAKA = { lat: 34.7025, lng: 135.4959 }
+const P_POS = { lat: 34.9719, lng: 135.4142 }
+const search = (body = {}, c = restaurant) => c('/api/market', { body: { center: null, radiusKm: null, ...body } })
+const locIds = (res) => res.data.locations.map((l) => l.id)
+const approveLoc = (id) => admin('/api/admin', { body: { target: 'location', id, action: 'approve' } })
+
+r = await farmC('/api/locations', { body: { name: 'C農園 地図テスト', municipality: '能勢町', address: 'テスト7-7', note: '', postalCode: '5630101', latitude: 34.98, longitude: 135.42, showOnMap: true, hours: '平日10〜16時' } })
+check('生産者は位置つきの受渡拠点を登録できる（確認待ち）', r.status === 201 && r.data.location.status === 'PENDING' && r.data.location.latitude === 34.98 && r.data.location.postalCode === '563-0101')
+const mapLoc = r.data.location
+r = await farmC('/api/listings', { body: listingBody({ grade: 'REGULAR', irregularReason: null, quantity: 4, unitPriceYen: 500, pickupLocationId: mapLoc.id }) })
+const mapListing = r.data.listing
+// 出品のない拠点は地図に出ないため、拠点Q にも出品を1件置く
+await farmB('/api/listings', { body: listingBody({ grade: 'REGULAR', irregularReason: null, quantity: 6, unitPriceYen: 520, pickupLocationId: placeQ.id }) })
+let s = await search()
+check('出品のない拠点や、確認待ちの拠点は地図に出ない', s.status === 200 && !locIds(s).includes(mapLoc.id))
+check('地図には、公開を許可した確認済みの拠点だけが出る', locIds(s).includes(placeP.id) && locIds(s).includes(placeQ.id))
+
+r = await farmB('/api/locations', { body: { name: 'B農園 自宅（非公開）', municipality: '豊能町', address: '自宅', note: '', latitude: 34.921, longitude: 135.491, showOnMap: false } })
+const privLoc = r.data.location
+await approveLoc(privLoc.id)
+r = await farmB('/api/listings', { body: listingBody({ grade: 'REGULAR', irregularReason: null, quantity: 2, unitPriceYen: 450, pickupLocationId: privLoc.id }) })
+const privListing = r.data.listing
+s = await search()
+check('地図への公開を許可していない拠点は、確認済みでも地図・検索に出ない', !locIds(s).includes(privLoc.id) && !JSON.stringify(s.data).includes(privListing.id))
+check('非公開の拠点の位置は、他の生産者にも返さない', (() => {
+  const other = s.data && null
+  return other === null
+})() && (await farmC('/api/master')).data.locations.filter((l) => l.id === privLoc.id).every((l) => l.latitude === null && l.longitude === null))
+const detailPriv = await restaurant(`/api/market?id=${privListing.id}`)
+check('非公開の拠点の出品も詳細は見られるが、位置は返さない', detailPriv.status === 200 && detailPriv.data.listing.location.latitude === null && !JSON.stringify(detailPriv.data).includes('34.921'))
+
+await approveLoc(mapLoc.id)
+s = await search()
+const shown = s.data.locations.find((l) => l.id === mapLoc.id)
+check('運営者が確認すると、地図に出る（位置・受取の目安つき）', shown?.latitude === 34.98 && shown.hours === '平日10〜16時' && shown.listings.some((l) => l.id === mapListing.id))
+
+const dMap = dist(P_POS, { lat: 34.98, lng: 135.42 })
+const dQ = dist(P_POS, { lat: placeQ.latitude, lng: placeQ.longitude })
+s = await search({ center: P_POS, radiusKm: 1 })
+check(`半径1km：中心の拠点Pは入り、${dMap.toFixed(2)}km 先・${dQ.toFixed(1)}km 先の拠点は除外`, locIds(s).includes(placeP.id) && !locIds(s).includes(mapLoc.id) && !locIds(s).includes(placeQ.id) && s.data.outsideCount >= 2, JSON.stringify(locIds(s)))
+check('中心からの直線距離を返す（拠点Pは0km）', s.data.locations.find((l) => l.id === placeP.id).distanceKm === 0)
+s = await search({ center: P_POS, radiusKm: 3 })
+check('半径3km：近くの拠点も入る', locIds(s).includes(mapLoc.id) && !locIds(s).includes(placeQ.id))
+s = await search({ center: P_POS, radiusKm: 10 })
+const ds = s.data.locations.map((l) => l.distanceKm)
+check('半径10km：拠点Qも入り、近い順に並ぶ', locIds(s).includes(placeQ.id) && ds.every((d, i) => i === 0 || ds[i - 1] <= d), JSON.stringify(ds))
+s = await search({ center: OSAKA, radiusKm: 1 })
+check('範囲内に何もない場合は0件で、範囲外の件数を返す（「広げる」提案用）', s.data.locations.length === 0 && s.data.outsideCount >= 3)
+s = await search({ center: OSAKA, radiusKm: null })
+check('距離指定なし：すべての公開拠点が対象', locIds(s).includes(placeP.id) && locIds(s).includes(placeQ.id))
+check('距離で絞るのに中心がない検索は拒否', (await search({ radiusKm: 10 })).status === 400)
+check('決められていない半径・不正な位置は拒否', (await search({ center: P_POS, radiusKm: 7 })).status === 400 && (await search({ center: { lat: 200, lng: 0 }, radiusKm: 10 })).status === 400)
+
+const nasu = (await anon('/api/master')).data.items.find((i) => i.name === 'なす')
+s = await search({ itemId: tomato.id, maxPriceYen: 500 })
+check('品目・単価の上限で絞り込める', s.data.locations.flatMap((l) => l.listings).every((l) => l.itemId === tomato.id && l.unitPriceYen <= 500) && s.data.locations.length > 0)
+s = await search({ irregular: 'only' })
+check('規格外品だけに絞り込める', s.data.locations.flatMap((l) => l.listings).every((l) => l.grade === 'IRREGULAR'))
+s = await search({ irregular: 'exclude', minQuantity: 3 })
+check('規格外品を除き、在庫の下限で絞り込める', s.data.locations.flatMap((l) => l.listings).every((l) => l.grade === 'REGULAR' && l.quantityMilli >= 3000))
+s = await search({ itemId: nasu.id, municipality: '豊能町' })
+check('品目とエリアの組み合わせで0件になる場合も正しく返す', s.status === 200 && s.data.locations.length === 0)
+check('生産者・未ログインは地図検索を使えない', (await search({}, farmA)).status === 403 && (await search({}, anon)).status === 401)
+check('検索の中心はDBに保存しない（保存先の項目がない）', (await db.query(`select count(*)::int as n from information_schema.columns where column_name ilike '%center%'`)).rows[0].n === 0)
+
+r = await farmC(`/api/locations?id=${mapLoc.id}`, { method: 'PUT', body: { name: 'C農園 地図テスト', municipality: '能勢町', address: 'テスト7-7', note: '', latitude: 34.985, longitude: 135.425, showOnMap: true, hours: '平日10〜16時' } })
+check('位置を変えると、運営者の確認を受け直す（地図から消える）', r.status === 200 && r.data.reviewAgain === true && r.data.location.status === 'PENDING' && !locIds(await search()).includes(mapLoc.id))
+await approveLoc(mapLoc.id)
+r = await farmC(`/api/locations?id=${mapLoc.id}`, { method: 'PUT', body: { name: 'C農園 地図テスト', municipality: '能勢町', address: 'テスト7-7', note: '', latitude: 34.985, longitude: 135.425, showOnMap: true, hours: '毎日9〜12時' } })
+check('受取の目安だけの変更では、確認済みのまま', r.data.location.status === 'APPROVED' && r.data.reviewAgain === false)
+check('他の生産者の受渡拠点は編集・削除できない', (await farmA(`/api/locations?id=${mapLoc.id}`, { method: 'PUT', body: { name: 'x', municipality: 'x', address: 'x', note: '' } })).status === 404 && (await farmA(`/api/locations?id=${mapLoc.id}`, { method: 'DELETE' })).status === 404)
+check('出品に使われている受渡拠点は削除できない', (await farmC(`/api/locations?id=${mapLoc.id}`, { method: 'DELETE' })).status === 400)
+r = await farmC('/api/locations', { body: { name: '使わない拠点', municipality: '能勢町', address: 'テスト8-8', note: '' } })
+check('使われていない自分の受渡拠点は削除できる', (await farmC(`/api/locations?id=${r.data.location.id}`, { method: 'DELETE' })).status === 200)
+check('自分の受渡拠点の一覧には、位置・郵便番号・出品数が入る', (await farmC('/api/locations')).data.locations.some((l) => l.id === mapLoc.id && l.latitude === 34.985 && l.listingCount === 1))
+const mapPlan = await plan()
+check(
+  '地図上で近い拠点どうしでも、仕入れ案は従来どおり1か所の中で組む（複数か所は許可した場合の参考案だけ）',
+  mapPlan.result.best.plan.lines.every((l) => l.pickupPointId === mapPlan.result.best.pickupPointId) && mapPlan.result.multi === null,
+)
+
+console.log('気になる（お気に入り）')
+r = await restaurant('/api/favorites', { body: { listingId: mapListing.id } })
+check('気になるに保存できる', r.status === 201)
+check('同じ出品を何度保存しても1件', (await restaurant('/api/favorites', { body: { listingId: mapListing.id } })).status === 201 && (await restaurant('/api/favorites')).data.favorites.filter((f) => f.listingId === mapListing.id).length === 1)
+check('検索結果で保存済みとわかる', (await search()).data.locations.flatMap((l) => l.listings).find((l) => l.id === mapListing.id)?.isFavorite === true)
+check('保存しても在庫は減らない（予約・確保ではない）', (await farmC('/api/listings')).data.listings.find((l) => l.id === mapListing.id).quantityMilli === 4000)
+await farmC(`/api/listings?id=${mapListing.id}`, { method: 'PATCH', body: { quantity: 3 } })
+let favs = (await restaurant('/api/favorites')).data.favorites
+check('保存後に在庫が変わると、最新の数量を表示する', favs.find((f) => f.listingId === mapListing.id)?.listing?.quantityMilli === 3000)
+check('他の飲食店の保存は見えない', (await restaurant2('/api/favorites')).data.favorites.length === 0)
+check('生産者は保存できない', (await farmA('/api/favorites', { body: { listingId: mapListing.id } })).status === 403)
+check('存在しない出品は保存できない', (await restaurant('/api/favorites', { body: { listingId: 'nope' } })).status === 404)
+await farmC(`/api/listings?id=${mapListing.id}`, { method: 'PATCH', body: { isPublished: false } })
+favs = (await restaurant('/api/favorites')).data.favorites
+check('公開が止まった出品は「掲載されていません」になり、詳細は返さない', favs.find((f) => f.listingId === mapListing.id)?.available === false && favs.find((f) => f.listingId === mapListing.id)?.listing === null)
+check('公開が止まった出品は検索・保存の対象外', !JSON.stringify((await search()).data).includes(mapListing.id) && (await restaurant('/api/favorites', { body: { listingId: mapListing.id } })).status === 404)
+check('公開が止まった出品の詳細は見られない', (await restaurant(`/api/market?id=${mapListing.id}`)).status === 404)
+await farmC(`/api/listings?id=${mapListing.id}`, { method: 'PATCH', body: { isPublished: true } })
+check('保存を解除できる', (await restaurant(`/api/favorites?listingId=${mapListing.id}`, { method: 'DELETE' })).status === 200 && !(await restaurant('/api/favorites')).data.favorites.some((f) => f.listingId === mapListing.id))
+await restaurant('/api/favorites', { body: { listingId: privListing.id } })
+await farmB(`/api/listings?id=${privListing.id}`, { method: 'DELETE' })
+check('出品が削除されると、保存も一緒に消える', !(await restaurant('/api/favorites')).data.favorites.some((f) => f.listingId === privListing.id))
+
+console.log('通報')
+r = await restaurant('/api/reports', { body: { targetType: 'LISTING', targetId: mapListing.id, reason: 'FALSE_INFO', detail: '写真と数量が違うようです' } })
+check('出品を通報できる（受付の結果だけを返す）', r.status === 201 && JSON.stringify(r.data) === '{"ok":true}')
+check('同じ対象への重複通報は受け付けない', (await restaurant('/api/reports', { body: { targetType: 'LISTING', targetId: mapListing.id, reason: 'NUISANCE' } })).status === 409)
+check('「その他」は詳細が必須', (await restaurant('/api/reports', { body: { targetType: 'PRODUCER', targetId: mapListing.id, reason: 'OTHER' } })).status === 400)
+const producerC = (await admin('/api/admin')).data.producers.find((x) => x.username === 'farm_c')
+r = await restaurant2('/api/reports', { body: { targetType: 'PRODUCER', targetId: producerC.id, reason: 'OTHER', detail: '連絡がつきません' } })
+check('生産者アカウントを通報できる', r.status === 201)
+check('飲食店アカウントの通報は（確認できる画面がないため）受け付けない', (await farmA('/api/reports', { body: { targetType: 'RESTAURANT', targetId: 'x', reason: 'FRAUD' } })).status === 400)
+check('自分の出品・自分のアカウントは通報できない', (await farmC('/api/reports', { body: { targetType: 'LISTING', targetId: mapListing.id, reason: 'FRAUD' } })).status === 400 && (await farmC('/api/reports', { body: { targetType: 'PRODUCER', targetId: producerC.id, reason: 'FRAUD' } })).status === 400)
+check('存在しない対象は通報できない', (await restaurant('/api/reports', { body: { targetType: 'LISTING', targetId: 'nope', reason: 'FRAUD' } })).status === 404)
+check('通報の一覧は、運営者以外には見えない（通報された生産者にも）', (await farmC('/api/reports')).status === 403 && (await restaurant('/api/reports')).status === 403 && (await anon('/api/reports')).status === 401)
+let reports = (await admin('/api/reports?status=OPEN')).data.reports
+const rep = reports.find((x) => x.targetId === mapListing.id)
+check('運営者は通報の内容・通報者・対象の状態を確認できる', rep?.reporterName === 'restaurant1' && rep.detail === '写真と数量が違うようです' && rep.targetState === 'ACTIVE' && rep.targetLabel.includes('トマト'))
+check('通報だけでは自動的に停止されない', (await search()).data.locations.flatMap((l) => l.listings).some((l) => l.id === mapListing.id))
+r = await admin('/api/reports', { method: 'PATCH', body: { id: rep.id, status: 'IN_REVIEW', note: '生産者に確認中' } })
+check('対応状況を変更し、メモを残せる', r.status === 200)
+r = await admin('/api/reports', { method: 'PATCH', body: { id: rep.id, targetAction: 'suspend', status: 'RESOLVED' } })
+reports = (await admin('/api/reports')).data.reports
+const after = reports.find((x) => x.id === rep.id)
+check('運営者は通報から対象を停止でき、対応履歴に残る', r.status === 200 && after.status === 'RESOLVED' && after.targetState === 'SUSPENDED' && after.actions.length >= 4, JSON.stringify(after?.actions))
+check('停止された出品は地図・仕入れ案に出ない', !JSON.stringify((await search()).data).includes(mapListing.id))
+await admin('/api/reports', { method: 'PATCH', body: { id: rep.id, targetAction: 'restore' } })
+check('停止を解除できる', (await search()).data.locations.flatMap((l) => l.listings).some((l) => l.id === mapListing.id))
+check('対応が終わった後は、同じ対象をもう一度通報できる', (await restaurant('/api/reports', { body: { targetType: 'LISTING', targetId: mapListing.id, reason: 'NUISANCE' } })).status === 201)
+check('運営者以外は対応状況を変更できない', (await restaurant('/api/reports', { method: 'PATCH', body: { id: rep.id, status: 'REJECTED' } })).status === 403)
+
+console.log('郵便番号・地名検索（外部サービスに実際に問い合わせ）')
+const zip = (z, c = restaurant) => c('/api/geo', { body: { op: 'zip', zip: z } })
+r = await zip('5300001')
+check('郵便番号（7桁）から住所を取得できる', r.status === 200 && r.data.results?.[0]?.prefecture === '大阪府' && r.data.results[0].city === '大阪市北区', JSON.stringify(r.data))
+r = await zip('530-0001', farmA)
+check('ハイフン付きでも取得できる（生産者も利用可）', r.data.results?.[0]?.town === '梅田')
+r = await zip('0000000')
+check('存在しない郵便番号は空の結果', r.status === 200 && Array.isArray(r.data.results) && r.data.results.length === 0, JSON.stringify(r.data))
+r = await zip('0790177')
+check('複数の住所候補があれば、すべて返す', (r.data.results?.length ?? 0) >= 2, JSON.stringify(r.data))
+check('7桁でない郵便番号は拒否', (await zip('12345')).status === 400)
+check('未ログインでは使えない', (await zip('5300001', anon)).status === 401)
+r = await restaurant('/api/geo', { body: { op: 'search', q: '梅田' } })
+check('地名から位置を検索できる（日本国内の候補）', r.status === 200 && (r.data.results === null || (r.data.results.length > 0 && r.data.results.every((x) => x.lat > 20 && x.lat < 46))), JSON.stringify(r.data).slice(0, 200))
+check('地名検索の入力が短すぎる場合は拒否', (await restaurant('/api/geo', { body: { op: 'search', q: 'あ' } })).status === 400)
+
 console.log('入力検証・AI停止')
 check('数量が負の値なら拒否', (await restaurant('/api/plan', { body: demand({ quantity: -1 }) })).status === 400)
 check('過去の日付なら拒否', (await restaurant('/api/plan', { body: demand({ date: jstDate(-1) }) })).status === 400)
