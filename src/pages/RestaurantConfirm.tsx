@@ -15,12 +15,15 @@ import {
   type Draft,
   type FormErrors,
 } from '../lib/forms.js'
+import { RADIUS_OPTIONS } from '../../shared/geo.js'
+import { AreaFields } from '../components/AreaFields.js'
 import { DemoModeToggle } from '../components/DemoModeToggle.js'
+import { loadSearch } from '../lib/search.js'
 import { useDemoMode } from '../lib/demoMode.js'
 import { useSession } from '../session.js'
 
 export function RestaurantConfirm() {
-  const { master } = useSession()
+  const { master, user } = useSession()
   const [demo] = useDemoMode()
   const navigate = useNavigate()
   const location = useLocation()
@@ -28,7 +31,18 @@ export function RestaurantConfirm() {
   const [draft] = useState<Draft>(
     () => loadDraft() ?? { text: '', form: emptyDemandForm(), regionText: null, notes: [], source: 'MANUAL' },
   )
-  const [form, setForm] = useState<DemandForm>(draft.form ?? emptyDemandForm())
+  // 受取エリア・検索地点が空なら、登録したお店の住所と、地図の画面の検索の中心（なければお店の位置）を初期値にする
+  const [form, setForm] = useState<DemandForm>(() => {
+    const f = draft.form ?? emptyDemandForm()
+    const search = loadSearch({ storePosition: user?.storePosition, prefecture: user?.address.prefecture })
+    return {
+      ...f,
+      prefecture: f.prefecture || search.prefecture || user?.address.prefecture || '',
+      municipality: f.prefecture ? f.municipality : '',
+      center: f.center ?? search.center,
+      centerLabel: f.center ? f.centerLabel : search.centerLabel,
+    }
+  })
   const [errors, setErrors] = useState<FormErrors>({})
   const today = jstDateString(Date.now())
   const fromAi = draft.source === 'AI'
@@ -140,30 +154,47 @@ export function RestaurantConfirm() {
           </div>
         </Field>
 
-        <Field
-          label="受取エリア（市区町村）"
-          hint={
-            <>
-              {draft.regionText && (
-                <>
-                  文章の「{draft.regionText}」は参考情報です。AIが場所を決めることはしません。
-                  <br />
-                </>
-              )}
-              エリアを選ぶと、そのエリアの受渡場所で受け取れる案だけを計算します。受渡場所は生産者が登録したものです。
-            </>
-          }
-        >
-          <select className="input" value={form.municipality} onChange={(e) => update('municipality', e.target.value)}>
-            <option value="">指定なし</option>
-            {/* 履歴から開いた条件のエリアが、今は選べなくなっている場合も表示だけは残す */}
-            {[...new Set([...(demo ? master.demoMunicipalities : master.municipalities), ...(form.municipality ? [form.municipality] : [])])].map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </Field>
+        <fieldset className="fieldset" aria-describedby="area-hint">
+          <legend>受取エリア（必須）</legend>
+          <p className="field-hint" id="area-hint">
+            {draft.regionText && <>文章の「{draft.regionText}」は参考情報です。AIが場所を決めることはしません。 </>}
+            選んだエリアの受渡場所で受け取れる案だけを計算します。初期値は、登録したお店の住所です。
+          </p>
+          <AreaFields
+            idPrefix="demand-area"
+            prefecture={form.prefecture}
+            municipality={form.municipality}
+            error={errors.prefecture}
+            onChange={(a) => {
+              const next = { ...form, ...a }
+              setForm(next)
+              setErrors((e) => ({ ...e, prefecture: undefined }))
+              saveDraft({ ...draft, form: next })
+            }}
+          />
+          <Field
+            label="検索地点からの距離"
+            hint={
+              form.center
+                ? `検索地点：${form.centerLabel || '指定した地点'}（地図の画面で変更できます）。直線距離で、道のりとは異なります。`
+                : '検索地点がありません。マイページでお店の位置を保存するか、地図の画面で検索の中心を指定すると選べます。'
+            }
+          >
+            <select
+              className="input"
+              value={form.center && form.radiusKm !== null ? String(form.radiusKm) : ''}
+              disabled={!form.center}
+              onChange={(e) => update('radiusKm', e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">距離で絞り込まない</option>
+              {RADIUS_OPTIONS.filter((r) => r !== null).map((r) => (
+                <option key={r} value={r!}>
+                  {r}km以内
+                </option>
+              ))}
+            </select>
+          </Field>
+        </fieldset>
 
         {form.timeMode === 'DEADLINE' ? (
           <div className="field">

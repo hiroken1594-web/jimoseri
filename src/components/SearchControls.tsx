@@ -2,9 +2,10 @@ import { Crosshair, LocateFixed, MapPinned, Search, SlidersHorizontal, Store } f
 import { useState, type FormEvent } from 'react'
 import { RADIUS_OPTIONS, type LatLng, type PlaceResult } from '../../shared/geo.js'
 import { api, errorMessage } from '../api.js'
-import { useDemoMode } from '../lib/demoMode.js'
 import type { SearchState } from '../lib/search.js'
 import { useSession } from '../session.js'
+import { jstDateString } from '../../shared/time.js'
+import { AreaFields } from './AreaFields.js'
 import { Field, Notice } from './ui.js'
 
 /** 位置情報の取得。利用者がボタンを押したときだけ呼ぶ（勝手には取得しない）。 */
@@ -80,8 +81,26 @@ export function CenterAndRadius({
   return (
     <section className="card center-tools" aria-labelledby="center-title">
       <h2 id="center-title" className="card-title">
-        どこから探しますか
+        どこで受け取りますか
       </h2>
+      <AreaFields
+        idPrefix="search-area"
+        prefecture={state.prefecture}
+        municipality={state.municipality}
+        error={state.prefecture ? undefined : '受取エリアを選択してください'}
+        onChange={(a) => onChange({ ...state, ...a })}
+      />
+      <Field label="受け取りたい日" hint="指定しない場合は、これから受け取れる農産物をすべて表示します。">
+        <div className="input-row">
+          <input className="input" type="date" min={jstDateString(Date.now())} value={state.date} onChange={(e) => onChange({ ...state, date: e.target.value })} />
+          {state.date && (
+            <button type="button" className="btn btn-small btn-quiet" onClick={() => onChange({ ...state, date: '' })}>
+              指定しない
+            </button>
+          )}
+        </div>
+      </Field>
+      <h3 className="sub-title">検索の中心と範囲（任意）</h3>
       <p className="field-hint" aria-live="polite">
         検索の中心：<strong>{state.center ? state.centerLabel || '指定した地点' : '未指定（距離では絞り込みません）'}</strong>
       </p>
@@ -157,9 +176,8 @@ export function CenterAndRadius({
 /** 品目・価格・数量・規格外・エリアの絞り込み */
 export function FilterFields({ state, onChange }: { state: SearchState; onChange: (next: SearchState) => void }) {
   const { master } = useSession()
-  const [demo] = useDemoMode()
   const set = <K extends keyof SearchState>(key: K, value: SearchState[K]) => onChange({ ...state, [key]: value })
-  const activeCount = [state.itemId, state.maxPrice, state.minQty, state.irregular !== 'any' ? 'x' : '', state.municipality].filter(Boolean).length
+  const activeCount = [state.itemId, state.maxPrice, state.minQty, state.irregular !== 'any' ? 'x' : ''].filter(Boolean).length
   return (
     <details className="alternatives" open={activeCount > 0}>
       <summary>
@@ -192,18 +210,8 @@ export function FilterFields({ state, onChange }: { state: SearchState; onChange
             </select>
           </Field>
         </div>
-        <Field label="受取エリア（市区町村）">
-          <select className="input" value={state.municipality} onChange={(e) => set('municipality', e.target.value)}>
-            <option value="">指定なし</option>
-            {(demo ? master.demoMunicipalities : master.municipalities).map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </Field>
         {activeCount > 0 && (
-          <button type="button" className="link-button" onClick={() => onChange({ ...state, itemId: '', maxPrice: '', minQty: '', irregular: 'any', municipality: '' })}>
+          <button type="button" className="link-button" onClick={() => onChange({ ...state, itemId: '', maxPrice: '', minQty: '', irregular: 'any' })}>
             絞り込みをすべて解除
           </button>
         )}

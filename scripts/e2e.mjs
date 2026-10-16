@@ -170,6 +170,7 @@ const demand = (over = {}) => ({
   timeMode: 'DEADLINE',
   date: DAY2,
   time: null,
+  prefecture: '大阪府',
   municipality: null,
   budgetMaxYen: null,
   allowIrregular: true,
@@ -285,7 +286,7 @@ await farmC(`/api/listings?id=${cTomato.id}`, { method: 'PUT', body: listingBody
 check('元に戻すと成功ケースに戻る', (await plan()).result.best.plan.totalYen === 5350)
 
 console.log('生産者の審査')
-r = await newbie('/api/locations', { body: { name: 'E2E新規農園の軒先', municipality: '能勢町', address: 'テスト3-3', note: '' } })
+r = await newbie('/api/locations', { body: { prefecture: '大阪府', name: 'E2E新規農園の軒先', municipality: '能勢町', address: 'テスト3-3', note: '' } })
 check('生産者は受渡場所を登録できる（確認待ち）', r.status === 201 && r.data.location.status === 'PENDING')
 const newPlace = r.data.location
 check('他の生産者は、確認待ちの他人の場所を使えない', (await farmC('/api/listings', { body: listingBody({ pickupLocationId: newPlace.id }) })).status === 400)
@@ -322,7 +323,7 @@ r = await recover({ username: 'restaurant2', recoveryCode: r.data.recoveryCode, 
 check('運営者が発行したコードでパスワードを再設定できる', r.status === 200 && (await restaurant2.login('restaurant2')).status === 200)
 check('運営者のコードは管理画面からは再発行できない', (await admin('/api/admin', { body: { target: 'recovery', username: 'unei_test' } })).status === 404)
 check('出品に使われている受渡場所は削除できない', (await admin('/api/admin', { body: { target: 'location', id: placeP.id, action: 'delete' } })).status === 400)
-r = await farmC('/api/locations', { body: { name: '使わない場所', municipality: '能勢町', address: 'テスト9-9', note: '' } })
+r = await farmC('/api/locations', { body: { prefecture: '大阪府', name: '使わない場所', municipality: '能勢町', address: 'テスト9-9', note: '' } })
 check('運営者は、使われていない受渡場所を削除できる', (await admin('/api/admin', { body: { target: 'location', id: r.data.location.id, action: 'delete' } })).status === 200)
 check('生産者は受渡場所を削除できない（管理APIを使えない）', (await farmC('/api/admin', { body: { target: 'location', id: placeQ.id, action: 'delete' } })).status === 403)
 
@@ -394,13 +395,13 @@ console.log('デモモード（お試し）・0件の理由・条件を広げた
 {
   const OSAKA_ST = { lat: 34.7025, lng: 135.4959 }
   const count = (res) => res.data.locations.reduce((n, l) => n + l.listings.length, 0)
-  const normal = await restaurant('/api/market', { body: { center: OSAKA_ST, radiusKm: 10 } })
+  const normal = await restaurant('/api/market', { body: { prefecture: '大阪府', center: OSAKA_ST, radiusKm: 10 } })
   check('通常の検索にはデモデータが混ざらない', normal.status === 200 && normal.data.demo === false && normal.data.locations.every((l) => !l.isDemo && l.listings.every((x) => !x.isDemo)))
-  const demo10 = await restaurant('/api/market', { body: { center: OSAKA_ST, radiusKm: 10, demo: true } })
+  const demo10 = await restaurant('/api/market', { body: { prefecture: '大阪府', center: OSAKA_ST, radiusKm: 10, demo: true } })
   check('デモモードでは、大阪駅から10km以内にデモデータの出品が見つかる', demo10.data.demo === true && count(demo10) > 100 && demo10.data.locations.every((l) => l.isDemo && l.listings.every((x) => x.isDemo) && l.distanceKm <= 10), `${count(demo10)}`)
-  const demoAll = await restaurant('/api/market', { body: { center: OSAKA_ST, radiusKm: null, demo: true } })
-  check('距離指定なしでは、さらに多く見つかる（東京も含む）', count(demoAll) > count(demo10) && demoAll.data.locations.some((l) => l.municipality.startsWith('東京都') || l.latitude > 35.5), `${count(demoAll)}`)
-  const none = await restaurant('/api/market', { body: { center: { lat: 33.59, lng: 130.4 }, radiusKm: 1 } })
+  const demoAll = await restaurant('/api/market', { body: { prefecture: '大阪府', center: OSAKA_ST, radiusKm: null, demo: true } })
+  check('距離指定なしでは、受取エリア（大阪府）内でさらに多く見つかる（東京は含まない）', count(demoAll) > count(demo10) && !demoAll.data.locations.some((l) => l.latitude > 35.5), `${count(demoAll)}`)
+  const none = await restaurant('/api/market', { body: { prefecture: '大阪府', center: { lat: 33.59, lng: 130.4 }, radiusKm: 1 } })
   const st = none.data.diagnostics?.stages ?? []
   check('0件のときは、条件ごとの件数と0件になった条件を返す', none.data.locations.length === 0 && st.length >= 5 && st.at(-1).count === 0 && st[0].count > 0, JSON.stringify(none.data.diagnostics))
   const tomatoDemand = { ...demand({ quantity: 10, date: DAY2, municipality: '大阪市福島区' }), demoMode: true }
@@ -417,9 +418,54 @@ console.log('デモモード（お試し）・0件の理由・条件を広げた
   check('通常の仕入れ案には、デモデータが使われない', !JSON.stringify(real.result).includes('お試し用'))
   check('デモの案は、通常の確認ではデモとして照合される', (await restaurant('/api/plan', { method: 'PUT', body: { itemId: tomato.id, fingerprint: fp.fingerprint, demoMode: true } })).data.fresh === true)
   const m = (await restaurant('/api/master')).data
-  check('デモモード用の受取エリアの選択肢がある（通常の選択肢には混ざらない）', m.demoMunicipalities.includes('大阪市福島区') && !m.municipalities.includes('大阪市福島区'))
+  check('デモモード用の受取エリアの選択肢がある（通常の選択肢には混ざらない）', m.demoAreas.some((a) => a.prefecture === '大阪府' && a.municipality === '大阪市福島区') && !m.areas.some((a) => a.municipality === '大阪市福島区'))
   const anyDemo = demo10.data.locations[0].listings[0]
   check('デモの出品の詳細は、デモモード指定のときだけ開ける', (await restaurant(`/api/market?id=${anyDemo.id}`)).status === 404 && (await restaurant(`/api/market?id=${anyDemo.id}&demo=1`)).status === 200)
+}
+
+console.log('受取エリア（必須）・受渡期間・ご依頼の検索')
+{
+  const OSAKA_CITY = { lat: 34.6937, lng: 135.5023 }
+  const count = (res) => res.data.locations?.reduce((n, l) => n + l.listings.length, 0) ?? -1
+  const market = (body) => restaurant('/api/market', { body: { center: null, radiusKm: null, demo: true, ...body } })
+  check('受取エリアのない検索は拒否', (await market({ prefecture: undefined })).status === 400)
+  check('受取エリアのない仕入れ案は拒否', (await restaurant('/api/plan', { body: demand({ prefecture: undefined }) })).status === 400)
+  const s1 = await market({ prefecture: '大阪府', center: OSAKA_CITY, radiusKm: 10 })
+  const s2 = await market({ prefecture: '大阪府', center: OSAKA_CITY, radiusKm: 50, date: jstDate(5) })
+  const s3 = await market({ prefecture: '大阪府' })
+  console.log(`    デモ：大阪市内10km ${count(s1)}件／大阪市内50km・${jstDate(5)} ${count(s2)}件／大阪府内・距離なし ${count(s3)}件`)
+  check('1. 大阪市内・半径10km・日付指定なしで1件以上', count(s1) > 0)
+  check('2. 大阪市内・半径50km・期間内の日付で1件以上（すべてその日に受け取れる）', count(s2) > 0 && s2.data.locations.every((l) => l.listings.every((x) => new Date(x.pickupStartMs + 9 * 3600_000).toISOString().slice(0, 10) === jstDate(5))))
+  check('3. 大阪府内・距離制限なしで1件以上（大阪府の拠点だけ）', count(s3) > 0 && s3.data.locations.every((l) => l.latitude < 35.2))
+  check('期間の出品には、期間と曜日・時間帯が付く', s3.data.locations.some((l) => l.listings.some((x) => x.period && x.period.schedule.weekdays > 0)))
+  const far = await market({ prefecture: '大阪府', date: jstDate(200) })
+  check('期間外の日付では0件。理由は「受け取りたい日」、日付を外した参考候補の件数を示す', count(far) === 0 && far.data.diagnostics.stages.find((x) => x.count === 0)?.key === 'DATE' && far.data.diagnostics.wider.some((w) => w.key === 'DATE' && w.count === count(s3)))
+  const aomori = await market({ prefecture: '青森県' })
+  check('受渡場所のない県では0件。理由は「受取エリア」', count(aomori) === 0 && aomori.data.diagnostics.stages.find((x) => x.count === 0)?.key === 'AREA')
+  const near = await market({ prefecture: '大阪府', center: OSAKA_CITY, radiusKm: 1 })
+  check('半径で0件のとき、広げた場合の件数を参考として示す', count(near) > 0 || near.data.diagnostics.wider.some((w) => w.key === 'RADIUS' || w.key === 'NO_RADIUS'))
+  const p4 = (await restaurant('/api/plan', { body: { ...demand({ quantity: 10, date: DAY2, prefecture: '大阪府', municipality: null, allowIrregular: false }), demoMode: true } })).data
+  check('4. 大阪府のトマト10kgで仕入れ案ができる', ['MATCHED', 'OVER_BUDGET'].includes(p4.result.best?.status), JSON.stringify(p4.result.best?.status))
+
+  // 受渡期間の出品（通常のデータで確かめる）
+  const target = jstDate(5)
+  const wd = 1 << new Date(`${target}T00:00:00Z`).getUTCDay()
+  check('期間：終了日が開始日より前なら拒否', (await farmC('/api/listings', { body: listingBody({ grade: 'REGULAR', irregularReason: null, pickupMode: 'PERIOD', pickupDate: jstDate(3), pickupEndDate: jstDate(1), weekdays: 127 }) })).status === 400)
+  check('期間：曜日がなければ拒否', (await farmC('/api/listings', { body: listingBody({ grade: 'REGULAR', irregularReason: null, pickupMode: 'PERIOD', pickupDate: jstDate(0), pickupEndDate: jstDate(30), weekdays: 0 }) })).status === 400)
+  check('期間：期間内に選んだ曜日がなければ拒否', (await farmC('/api/listings', { body: listingBody({ grade: 'REGULAR', irregularReason: null, pickupMode: 'PERIOD', pickupDate: target, pickupEndDate: target, weekdays: 127 ^ wd }) })).status === 400)
+  r = await farmC('/api/listings', { body: listingBody({ grade: 'REGULAR', irregularReason: null, quantity: 4, unitPriceYen: 500, pickupMode: 'PERIOD', pickupDate: jstDate(0), pickupEndDate: jstDate(30), weekdays: wd, startTime: '13:00', endTime: '14:00' }) })
+  const periodListing = r.data?.listing
+  check('期間の出品を登録できる（開始日・終了日・曜日・時間帯）', r.status === 201 && periodListing.schedule?.weekdays === wd && periodListing.schedule.startMin === 780, JSON.stringify(r.data))
+  const onDay = await restaurant('/api/market', { body: { prefecture: '大阪府', center: null, radiusKm: null, date: target } })
+  const offDay = await restaurant('/api/market', { body: { prefecture: '大阪府', center: null, radiusKm: null, date: jstDate(6) } })
+  const has = (res) => res.data.locations.some((l) => l.listings.some((x) => x.id === periodListing.id))
+  check('期間の出品：選んだ曜日の日付なら検索に出る（受渡時刻はその日の13時）', has(onDay) && onDay.data.locations.flatMap((l) => l.listings).find((x) => x.id === periodListing.id).pickupStartMs === Date.parse(`${target}T13:00:00+09:00`))
+  check('期間の出品：選んでいない曜日の日付では出ない', !has(offDay))
+  const exact = (await restaurant('/api/plan', { body: demand({ quantity: 4, timeMode: 'EXACT', date: target, time: '13:30', allowIrregular: false }) })).data
+  check('期間の出品：その日の時間帯に受け取る仕入れ案に使われる', exact.result.best?.plan.lines.some((l) => l.listingId === periodListing.id) && exact.listingInfo[periodListing.id].pickupStartMs === Date.parse(`${target}T13:00:00+09:00`), JSON.stringify(exact.result.best?.plan.lines))
+  const before = (await restaurant('/api/plan', { body: demand({ quantity: 4, date: DAY2, allowIrregular: false }) })).data
+  check('期間の出品：希望日までに受け取れる回がなければ使われない', !(before.result.best?.plan.lines ?? []).some((l) => l.listingId === periodListing.id))
+  await farmC(`/api/listings?id=${periodListing.id}`, { method: 'DELETE' })
 }
 execSync('npx tsx scripts/demo-data.ts remove', { stdio: 'ignore' })
 const leftovers = await db.query('select (select count(*)::int from "Listing" where "isDemo") as l, (select count(*)::int from "PickupLocation" where "isDemo") as p, (select count(*)::int from "Producer" where "isDemo") as pr')
@@ -434,11 +480,11 @@ const dist = (a, b) => {
 }
 const OSAKA = { lat: 34.7025, lng: 135.4959 }
 const P_POS = { lat: 34.9719, lng: 135.4142 }
-const search = (body = {}, c = restaurant) => c('/api/market', { body: { center: null, radiusKm: null, ...body } })
+const search = (body = {}, c = restaurant) => c('/api/market', { body: { prefecture: '大阪府', center: null, radiusKm: null, ...body } })
 const locIds = (res) => res.data.locations.map((l) => l.id)
 const approveLoc = (id) => admin('/api/admin', { body: { target: 'location', id, action: 'approve' } })
 
-r = await farmC('/api/locations', { body: { name: 'C農園 地図テスト', municipality: '能勢町', address: 'テスト7-7', note: '', postalCode: '5630101', latitude: 34.98, longitude: 135.42, showOnMap: true, hours: '平日10〜16時' } })
+r = await farmC('/api/locations', { body: { prefecture: '大阪府', name: 'C農園 地図テスト', municipality: '能勢町', address: 'テスト7-7', note: '', postalCode: '5630101', latitude: 34.98, longitude: 135.42, showOnMap: true, hours: '平日10〜16時' } })
 check('生産者は位置つきの受渡拠点を登録できる（確認待ち）', r.status === 201 && r.data.location.status === 'PENDING' && r.data.location.latitude === 34.98 && r.data.location.postalCode === '563-0101')
 const mapLoc = r.data.location
 r = await farmC('/api/listings', { body: listingBody({ grade: 'REGULAR', irregularReason: null, quantity: 4, unitPriceYen: 500, pickupLocationId: mapLoc.id }) })
@@ -449,7 +495,7 @@ let s = await search()
 check('出品のない拠点や、確認待ちの拠点は地図に出ない', s.status === 200 && !locIds(s).includes(mapLoc.id))
 check('地図には、公開を許可した確認済みの拠点だけが出る', locIds(s).includes(placeP.id) && locIds(s).includes(placeQ.id))
 
-r = await farmB('/api/locations', { body: { name: 'B農園 自宅（非公開）', municipality: '豊能町', address: '自宅', note: '', latitude: 34.921, longitude: 135.491, showOnMap: false } })
+r = await farmB('/api/locations', { body: { prefecture: '大阪府', name: 'B農園 自宅（非公開）', municipality: '豊能町', address: '自宅', note: '', latitude: 34.921, longitude: 135.491, showOnMap: false } })
 const privLoc = r.data.location
 await approveLoc(privLoc.id)
 r = await farmB('/api/listings', { body: listingBody({ grade: 'REGULAR', irregularReason: null, quantity: 2, unitPriceYen: 450, pickupLocationId: privLoc.id }) })
@@ -497,14 +543,14 @@ check('品目とエリアの組み合わせで0件になる場合も正しく返
 check('生産者・未ログインは地図検索を使えない', (await search({}, farmA)).status === 403 && (await search({}, anon)).status === 401)
 check('検索の中心はDBに保存しない（保存先の項目がない）', (await db.query(`select count(*)::int as n from information_schema.columns where column_name ilike '%center%'`)).rows[0].n === 0)
 
-r = await farmC(`/api/locations?id=${mapLoc.id}`, { method: 'PUT', body: { name: 'C農園 地図テスト', municipality: '能勢町', address: 'テスト7-7', note: '', latitude: 34.985, longitude: 135.425, showOnMap: true, hours: '平日10〜16時' } })
+r = await farmC(`/api/locations?id=${mapLoc.id}`, { method: 'PUT', body: { prefecture: '大阪府', name: 'C農園 地図テスト', municipality: '能勢町', address: 'テスト7-7', note: '', latitude: 34.985, longitude: 135.425, showOnMap: true, hours: '平日10〜16時' } })
 check('位置を変えると、運営者の確認を受け直す（地図から消える）', r.status === 200 && r.data.reviewAgain === true && r.data.location.status === 'PENDING' && !locIds(await search()).includes(mapLoc.id))
 await approveLoc(mapLoc.id)
-r = await farmC(`/api/locations?id=${mapLoc.id}`, { method: 'PUT', body: { name: 'C農園 地図テスト', municipality: '能勢町', address: 'テスト7-7', note: '', latitude: 34.985, longitude: 135.425, showOnMap: true, hours: '毎日9〜12時' } })
+r = await farmC(`/api/locations?id=${mapLoc.id}`, { method: 'PUT', body: { prefecture: '大阪府', name: 'C農園 地図テスト', municipality: '能勢町', address: 'テスト7-7', note: '', latitude: 34.985, longitude: 135.425, showOnMap: true, hours: '毎日9〜12時' } })
 check('受取の目安だけの変更では、確認済みのまま', r.data.location.status === 'APPROVED' && r.data.reviewAgain === false)
-check('他の生産者の受渡拠点は編集・削除できない', (await farmA(`/api/locations?id=${mapLoc.id}`, { method: 'PUT', body: { name: 'x', municipality: 'x', address: 'x', note: '' } })).status === 404 && (await farmA(`/api/locations?id=${mapLoc.id}`, { method: 'DELETE' })).status === 404)
+check('他の生産者の受渡拠点は編集・削除できない', (await farmA(`/api/locations?id=${mapLoc.id}`, { method: 'PUT', body: { prefecture: '大阪府', name: 'x', municipality: 'x', address: 'x', note: '' } })).status === 404 && (await farmA(`/api/locations?id=${mapLoc.id}`, { method: 'DELETE' })).status === 404)
 check('出品に使われている受渡拠点は削除できない', (await farmC(`/api/locations?id=${mapLoc.id}`, { method: 'DELETE' })).status === 400)
-r = await farmC('/api/locations', { body: { name: '使わない拠点', municipality: '能勢町', address: 'テスト8-8', note: '' } })
+r = await farmC('/api/locations', { body: { prefecture: '大阪府', name: '使わない拠点', municipality: '能勢町', address: 'テスト8-8', note: '' } })
 check('使われていない自分の受渡拠点は削除できる', (await farmC(`/api/locations?id=${r.data.location.id}`, { method: 'DELETE' })).status === 200)
 check('自分の受渡拠点の一覧には、位置・郵便番号・出品数が入る', (await farmC('/api/locations')).data.locations.some((l) => l.id === mapLoc.id && l.latitude === 34.985 && l.listingCount === 1))
 const mapPlan = await plan()

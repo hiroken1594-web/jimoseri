@@ -64,10 +64,10 @@ await prisma.producer.update({
 })
 
 const placeP = await prisma.pickupLocation.create({
-  data: { name: 'テスト受渡場所P', municipality: '能勢町', address: '（架空）能勢町テスト1-1 直売所前', status: 'APPROVED', createdById: producerIds.farm_a, latitude: 34.9719, longitude: 135.4142, showOnMap: true, hours: '平日10〜16時（テスト）' },
+  data: { name: 'テスト受渡場所P', prefecture: '大阪府', municipality: '能勢町', address: '（架空）能勢町テスト1-1 直売所前', status: 'APPROVED', createdById: producerIds.farm_a, latitude: 34.9719, longitude: 135.4142, showOnMap: true, hours: '平日10〜16時（テスト）' },
 })
 await prisma.pickupLocation.create({
-  data: { name: 'テスト受渡場所Q', municipality: '豊能町', address: '（架空）豊能町テスト2-2 集荷場', status: 'APPROVED', createdById: producerIds.farm_b, latitude: 34.9187, longitude: 135.494, showOnMap: true },
+  data: { name: 'テスト受渡場所Q', prefecture: '大阪府', municipality: '豊能町', address: '（架空）豊能町テスト2-2 集荷場', status: 'APPROVED', createdById: producerIds.farm_b, latitude: 34.9187, longitude: 135.494, showOnMap: true },
 })
 
 const item = async (name: string) => (await prisma.item.findUniqueOrThrow({ where: { name } })).id

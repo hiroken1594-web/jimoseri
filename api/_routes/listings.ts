@@ -1,5 +1,6 @@
 import { listingCreateSchema, listingPatchSchema, type ListingCreateInput } from '../../shared/schemas.js'
-import { jstToMs } from '../../shared/time.js'
+import { nextOccurrence, timeToMin } from '../../shared/schedule.js'
+import { DAY_MS, jstToMs } from '../../shared/time.js'
 import { requireActor } from '../_lib/auth.js'
 import { handle, HttpError, json, readBody } from '../_lib/http.js'
 import { listingInclude, toListingDto } from '../_lib/listings.js'
@@ -8,15 +9,22 @@ import { getPrisma } from '../_lib/prisma.js'
 /** 入力を検証して、DB に保存する形へ直す（新規登録・編集で共通） */
 async function toListingData(body: ListingCreateInput, producerId: string) {
   const prisma = getPrisma()
+  const period = body.pickupMode === 'PERIOD'
+  const endDate = period ? body.pickupEndDate! : body.pickupDate
+  // 期間の出品：pickupStart は最初の日の開始時刻、pickupEnd は最後の日の終了時刻
   const pickupStart = jstToMs(body.pickupDate, body.startTime)
-  const pickupEnd = jstToMs(body.pickupDate, body.endTime)
+  const pickupEnd = jstToMs(endDate, body.endTime)
   if (Number.isNaN(pickupStart) || Number.isNaN(pickupEnd)) {
     throw new HttpError(400, 'VALIDATION', '受渡日を確認してください。', { pickupDate: '受渡日を確認してください。' })
   }
-  if (pickupEnd <= Date.now()) {
-    throw new HttpError(400, 'VALIDATION', '受渡の終了時刻が過ぎています。これからの日時を選んでください。', {
-      pickupDate: 'これからの日時を選んでください。',
-    })
+  if (period && pickupEnd - pickupStart > 366 * DAY_MS) {
+    throw new HttpError(400, 'VALIDATION', '受渡の期間は1年以内にしてください。', { pickupEndDate: '受渡の期間は1年以内にしてください。' })
+  }
+  const schedule = period ? { weekdays: body.weekdays!, startMin: timeToMin(body.startTime), endMin: timeToMin(body.endTime) } : null
+  // これから受け取れる回が1つもない出品は登録しない（期間の出品は、選んだ曜日が期間内にあるかも確かめる）
+  if (!nextOccurrence({ pickupStartMs: pickupStart, pickupEndMs: pickupEnd, schedule }, Date.now())) {
+    const message = period ? '期間内に、これから受け渡しできる日がありません。期間・曜日・時刻を確認してください。' : '受渡の終了時刻が過ぎています。これからの日時を選んでください。'
+    throw new HttpError(400, 'VALIDATION', message, period ? { pickupEndDate: message } : { pickupDate: 'これからの日時を選んでください。' })
   }
   const [item, location] = await Promise.all([
     prisma.item.findUnique({ where: { id: body.itemId } }),
@@ -45,6 +53,9 @@ async function toListingData(body: ListingCreateInput, producerId: string) {
     pickupLocationId: location.id,
     pickupStart: new Date(pickupStart),
     pickupEnd: new Date(pickupEnd),
+    pickupWeekdays: schedule?.weekdays ?? null,
+    pickupStartMin: schedule?.startMin ?? null,
+    pickupEndMin: schedule?.endMin ?? null,
   }
 }
 

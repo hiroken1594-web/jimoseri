@@ -5,8 +5,10 @@ import type { Grade, IrregularReason, Unit } from '../../shared/allocate.js'
 import type { ListingDto, LocationDto } from '../../shared/dto.js'
 import { formatQty, formatYen, IRREGULAR_LABEL, IRREGULAR_REASONS, UNIT_LABEL, UNITS } from '../../shared/labels.js'
 import type { ListingCreateInput, LocationCreateInput } from '../../shared/schemas.js'
-import { addDaysJst, formatWindow, jstDateString, jstTimeString } from '../../shared/time.js'
+import { ALL_WEEKDAYS, formatPickup, minToTime, WEEKDAY_LABELS } from '../../shared/schedule.js'
+import { addDaysJst, jstDateString, jstTimeString } from '../../shared/time.js'
 import { api, ApiError, errorMessage } from '../api.js'
+import { PREFECTURES } from '../components/AddressFields.js'
 import { Choice, Field, Loading, Notice, PageTitle } from '../components/ui.js'
 import { parseNumber } from '../lib/forms.js'
 import { useSession } from '../session.js'
@@ -14,7 +16,11 @@ import { useSession } from '../session.js'
 interface Form {
   itemId: string
   variety: string
+  /** DAY：1日だけ／PERIOD：期間（開始日〜終了日の、選んだ曜日） */
+  pickupMode: 'DAY' | 'PERIOD'
   pickupDate: string
+  pickupEndDate: string
+  weekdays: number
   pickupLocationId: string
   quantity: string
   unit: Unit
@@ -28,22 +34,26 @@ interface Form {
 }
 
 type Errors = Partial<Record<keyof Form, string>>
-const STEP1_FIELDS: (keyof Form)[] = ['itemId', 'variety', 'pickupDate', 'pickupLocationId']
+const STEP1_FIELDS: (keyof Form)[] = ['itemId', 'variety', 'pickupDate', 'pickupEndDate', 'weekdays', 'pickupLocationId']
 const NEW_LOCATION = '__new__'
 
 function formFromListing(l: ListingDto, today: string): Form {
   const date = jstDateString(l.pickupStartMs)
+  const s = l.schedule
   return {
     itemId: l.itemId,
     variety: l.variety ?? '',
-    // 過ぎた日付の出品を編集する場合は、日付を選び直してもらう
-    pickupDate: date < today ? '' : date,
+    pickupMode: s ? 'PERIOD' : 'DAY',
+    // 1日だけの出品で、過ぎた日付の出品を編集する場合は、日付を選び直してもらう（期間の出品は、期間中なら開始日はそのまま）
+    pickupDate: s ? date : date < today ? '' : date,
+    pickupEndDate: s ? jstDateString(l.pickupEndMs - 1) : '',
+    weekdays: s?.weekdays ?? ALL_WEEKDAYS,
     pickupLocationId: l.pickupLocationId,
     quantity: formatQty(l.quantityMilli),
     unit: l.unit,
     unitPriceYen: String(l.unitPriceYen),
-    startTime: jstTimeString(l.pickupStartMs),
-    endTime: jstTimeString(l.pickupEndMs),
+    startTime: s ? minToTime(s.startMin) : jstTimeString(l.pickupStartMs),
+    endTime: s ? minToTime(s.endMin) : jstTimeString(l.pickupEndMs),
     minQuantity: formatQty(l.minMilli),
     stepQuantity: formatQty(l.stepMilli),
     grade: l.grade,
@@ -54,7 +64,7 @@ function formFromListing(l: ListingDto, today: string): Form {
 /** 受渡場所を新しく登録する小さなフォーム */
 function NewLocation({ onCreated, onCancel }: { onCreated: (location: LocationDto) => void; onCancel: () => void }) {
   const { user } = useSession()
-  const [value, setValue] = useState<LocationCreateInput>({ name: '', municipality: user?.area ?? '', address: '', note: '' })
+  const [value, setValue] = useState<LocationCreateInput>({ name: '', prefecture: user?.address.prefecture ?? '', municipality: user?.area ?? '', address: '', note: '' })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
@@ -83,6 +93,16 @@ function NewLocation({ onCreated, onCancel }: { onCreated: (location: LocationDt
       </p>
       <Field label="名称" required error={errors.name} hint="例：〇〇農園 直売所前、△△集荷場">
         <input className="input" type="text" maxLength={40} value={value.name} onChange={(e) => set('name', e.target.value)} />
+      </Field>
+      <Field label="都道府県" required error={errors.prefecture} hint="飲食店が受取エリアを選ぶときに使います。">
+        <select className="input" value={value.prefecture} onChange={(e) => set('prefecture', e.target.value)}>
+          <option value="">選択してください</option>
+          {PREFECTURES.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
       </Field>
       <Field label="市区町村" required error={errors.municipality} hint="飲食店が受取エリアを選ぶときに使います。例：能勢町">
         <input className="input" type="text" maxLength={20} value={value.municipality} onChange={(e) => set('municipality', e.target.value)} />
@@ -119,7 +139,10 @@ export function ProducerForm() {
   const initial = (): Form => ({
     itemId: '',
     variety: '',
+    pickupMode: 'DAY',
     pickupDate: addDaysJst(today, 1),
+    pickupEndDate: addDaysJst(today, 30),
+    weekdays: ALL_WEEKDAYS,
     pickupLocationId: '',
     quantity: '',
     unit: 'KG',
@@ -176,8 +199,16 @@ export function ProducerForm() {
   const validateStep1 = (): Errors => {
     const e: Errors = {}
     if (!form.itemId) e.itemId = '品目を選択してください'
-    if (!form.pickupDate) e.pickupDate = '受渡日を選択してください'
-    else if (form.pickupDate < today) e.pickupDate = '今日以降の日付を選んでください'
+    if (form.pickupMode === 'DAY') {
+      if (!form.pickupDate) e.pickupDate = '受渡日を選択してください'
+      else if (form.pickupDate < today) e.pickupDate = '今日以降の日付を選んでください'
+    } else {
+      if (!form.pickupDate) e.pickupDate = '受渡開始日を選択してください'
+      if (!form.pickupEndDate) e.pickupEndDate = '受渡終了日を選択してください'
+      else if (form.pickupEndDate < today) e.pickupEndDate = '終了日は今日以降にしてください'
+      else if (form.pickupDate && form.pickupEndDate < form.pickupDate) e.pickupEndDate = '終了日は開始日以降にしてください'
+      if (!form.weekdays) e.weekdays = '受け渡しできる曜日を1つ以上選んでください'
+    }
     if (!form.pickupLocationId) e.pickupLocationId = '受渡場所を選択してください'
     return e
   }
@@ -219,7 +250,10 @@ export function ProducerForm() {
       minQuantity: min!,
       stepQuantity: stepQty!,
       pickupLocationId: form.pickupLocationId,
+      pickupMode: form.pickupMode,
       pickupDate: form.pickupDate,
+      pickupEndDate: form.pickupMode === 'PERIOD' ? form.pickupEndDate : null,
+      weekdays: form.pickupMode === 'PERIOD' ? form.weekdays : null,
       startTime: form.startTime,
       endTime: form.endTime,
     }
@@ -288,7 +322,7 @@ export function ProducerForm() {
             <div>
               <dt>受渡</dt>
               <dd>
-                {formatWindow(saved.pickupStartMs, saved.pickupEndMs)}／{saved.pickupLocationName}
+                {formatPickup(saved)}／{saved.pickupLocationName}
               </dd>
             </div>
           </dl>
@@ -348,9 +382,42 @@ export function ProducerForm() {
           <Field label="品種・銘柄" error={errors.variety}>
             <input className="input" type="text" maxLength={30} value={form.variety} placeholder="例：桃太郎" onChange={(e) => update('variety', e.target.value)} />
           </Field>
-          <Field label="受渡できる日" required error={errors.pickupDate}>
-            <input className="input" type="date" min={today} value={form.pickupDate} onChange={(e) => update('pickupDate', e.target.value)} />
+          <Field label="受け渡しの日" required>
+            <Choice<'DAY' | 'PERIOD'>
+              label="受け渡しの日"
+              value={form.pickupMode}
+              onChange={(v) => update('pickupMode', v)}
+              options={[
+                { value: 'DAY', label: '1日だけ', sub: '決まった日に受け渡し' },
+                { value: 'PERIOD', label: '期間で指定', sub: '例：10月〜12月の毎週月・水・金' },
+              ]}
+            />
           </Field>
+          {form.pickupMode === 'DAY' ? (
+            <Field label="受渡できる日" required error={errors.pickupDate}>
+              <input className="input" type="date" min={today} value={form.pickupDate} onChange={(e) => update('pickupDate', e.target.value)} />
+            </Field>
+          ) : (
+            <>
+              <div className="field-pair">
+                <Field label="受渡開始日" required error={errors.pickupDate}>
+                  <input className="input" type="date" value={form.pickupDate} onChange={(e) => update('pickupDate', e.target.value)} />
+                </Field>
+                <Field label="受渡終了日" required error={errors.pickupEndDate}>
+                  <input className="input" type="date" min={form.pickupDate || today} value={form.pickupEndDate} onChange={(e) => update('pickupEndDate', e.target.value)} />
+                </Field>
+              </div>
+              <Field label="受け渡しできる曜日" required error={errors.weekdays} hint="期間内の、選んだ曜日に受け渡しできます。時間帯は次の画面で入力します。">
+                <div className="weekday-picker" role="group" aria-label="受け渡しできる曜日">
+                  {WEEKDAY_LABELS.map((label, i) => (
+                    <button key={label} type="button" aria-pressed={Boolean(form.weekdays & (1 << i))} onClick={() => update('weekdays', form.weekdays ^ (1 << i))}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+            </>
+          )}
           <Field
             label="受渡場所"
             required

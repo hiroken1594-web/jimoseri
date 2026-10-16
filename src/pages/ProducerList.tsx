@@ -3,7 +3,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { ListingBlocker, ListingDto } from '../../shared/dto.js'
 import { formatQty, formatYen, IRREGULAR_LABEL, UNIT_LABEL } from '../../shared/labels.js'
-import { DAY_MS, formatJstDateTime, formatWindow } from '../../shared/time.js'
+import { formatPickup } from '../../shared/schedule.js'
+import { DAY_MS, formatJstDateTime } from '../../shared/time.js'
 import { api, errorMessage } from '../api.js'
 import { EmptyState, ItemIcon, Loading, Notice, PageTitle } from '../components/ui.js'
 import { parseNumber } from '../lib/forms.js'
@@ -16,6 +17,7 @@ const BLOCKER_TEXT: Record<ListingBlocker, string> = {
   PRODUCER_SUSPENDED: 'アカウントが運営者により停止されています',
   LOCATION_PENDING: '受渡場所を運営者が確認中です',
   LOCATION_SUSPENDED: '受渡場所が運営者により停止されています',
+  LOCATION_NO_PREFECTURE: '受渡場所の都道府県が未登録のため、飲食店の検索に表示されません（「受渡拠点」で都道府県を登録してください）',
   ADMIN_SUSPENDED: 'この出品は運営者により停止されています',
 }
 
@@ -183,7 +185,7 @@ function ListingCard({
         <div>
           <dt>受渡</dt>
           <dd>
-            {formatWindow(listing.pickupStartMs, listing.pickupEndMs)}／{listing.pickupLocationName}
+            {formatPickup(listing)}／{listing.pickupLocationName}
           </dd>
         </div>
         <div>

@@ -128,7 +128,8 @@ export const locationCreateSchema = z
     address: shortText('住所・目印', 100),
     note: z.string().trim().max(100, '補足は100文字以内で入力してください'),
     postalCode: z.string().trim().regex(/^(\d{3}-?\d{4})?$/, '郵便番号は7桁の数字で入力してください').nullable().optional(),
-    prefecture: z.string().trim().max(10).nullable().optional(),
+    // 都道府県（必須）。飲食店の受取エリア（都道府県）での検索に使う。
+    prefecture: z.string({ error: '都道府県を選択してください' }).trim().min(1, '都道府県を選択してください').max(10),
     town: z.string().trim().max(60).nullable().optional(),
     latitude: latitude.nullable().optional(),
     longitude: longitude.nullable().optional(),
@@ -146,6 +147,10 @@ export const locationCreateSchema = z
 
 // 地図・一覧での検索（飲食店）。検索の中心は送るだけで、サーバーには保存しない。
 export const marketSearchSchema = z.object({
+  // 受取エリア（必須）：都道府県。市区町村は任意。
+  prefecture: z.string({ error: '受取エリアを選択してください' }).trim().min(1, '受取エリアを選択してください').max(10),
+  // 受け取りたい日（任意）。指定しない場合は、日付だけを理由に除外しない（これから受け取れる回がある出品はすべて対象）。
+  date: dateString.nullable().optional(),
   center: z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).nullable(),
   radiusKm: z.union([z.literal(1), z.literal(3), z.literal(5), z.literal(10), z.literal(20), z.literal(50), z.null()]),
   itemId: z.string().max(40).nullable().optional(),
@@ -183,7 +188,13 @@ export const listingCreateSchema = z
     minQuantity: quantity,
     stepQuantity: quantity,
     pickupLocationId: id,
+    // 受け渡し：1日だけ（DAY）か、期間（PERIOD：開始日〜終了日の、選んだ曜日の同じ時間帯）
+    pickupMode: z.enum(['DAY', 'PERIOD']).optional(),
+    // DAY：受渡日／PERIOD：受渡開始日
     pickupDate: dateString,
+    // PERIOD のみ：受渡終了日と曜日（日曜=1 … 土曜=64 の合計）
+    pickupEndDate: dateString.nullable().optional(),
+    weekdays: z.number().int().min(0).max(127).nullable().optional(),
     startTime: timeString,
     endTime: timeString,
   })
@@ -196,6 +207,11 @@ export const listingCreateSchema = z
     }
     if (v.endTime <= v.startTime) {
       ctx.addIssue({ code: 'custom', path: ['endTime'], message: '終了時刻は開始時刻より後にしてください' })
+    }
+    if (v.pickupMode === 'PERIOD') {
+      if (!v.pickupEndDate) ctx.addIssue({ code: 'custom', path: ['pickupEndDate'], message: '受渡終了日を選択してください' })
+      else if (v.pickupEndDate < v.pickupDate) ctx.addIssue({ code: 'custom', path: ['pickupEndDate'], message: '受渡終了日は開始日以降にしてください' })
+      if (!v.weekdays) ctx.addIssue({ code: 'custom', path: ['weekdays'], message: '受け渡しできる曜日を1つ以上選択してください' })
     }
   })
 
@@ -219,8 +235,12 @@ export const demandSchema = z
     timeMode: timeModeSchema,
     date: dateString,
     time: timeString.nullable(),
-    // 受取エリア（市区町村）。null は指定なし。
+    // 受取エリア（必須）：都道府県。市区町村は null なら都道府県全体。
+    prefecture: z.string({ error: '受取エリアを選択してください' }).trim().min(1, '受取エリアを選択してください').max(10),
     municipality: z.string().trim().min(1).max(20).nullable(),
+    // 検索地点と半径（任意）。両方あるときだけ、半径の内側の受渡場所に絞る。
+    center: z.object({ lat: z.number().min(20).max(46), lng: z.number().min(122).max(154) }).nullable().optional(),
+    radiusKm: z.union([z.literal(1), z.literal(3), z.literal(5), z.literal(10), z.literal(20), z.literal(50), z.null()]).optional(),
     budgetMaxYen: z
       .number({ error: '予算を数字で入力してください' })
       .int('予算は1円単位で入力してください')

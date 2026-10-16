@@ -266,8 +266,13 @@ model Listing {
   stepQuantity     Decimal          @db.Decimal(10, 3)
   pickupLocationId String
   pickupLocation   PickupLocation   @relation(fields: [pickupLocationId], references: [id])
+  // 1日だけの出品：受渡の開始・終了。期間の出品：最初の回の開始・最後の回の終了。
   pickupStart      DateTime
   pickupEnd        DateTime
+  // 期間の出品だけ：受け取れる曜日（日曜=1 … 土曜=64 の合計）と、その日の時間帯（0時からの分）。null なら1日だけの出品。
+  pickupWeekdays   Int?
+  pickupStartMin   Int?
+  pickupEndMin     Int?
   // 生産者本人による公開／停止
   isPublished      Boolean          @default(true)
   // 運営者による停止
@@ -296,7 +301,8 @@ model Demand {
   // DEADLINE: 期限の日 / EXACT: 指定日（日本時間の YYYY-MM-DD）
   date               String
   time               String?
-  // 受取エリア（市区町村）。null は指定なし。
+  // 受取エリア：都道府県（必須。以前の履歴は null）と市区町村（null は指定なし）
+  prefecture         String?
   municipality       String?
   budgetMaxYen       Int?
   allowIrregular     Boolean

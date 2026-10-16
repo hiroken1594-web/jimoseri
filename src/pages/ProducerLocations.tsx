@@ -73,6 +73,7 @@ function LocationEditor({ initial, editingId, onDone, onCancel }: { initial: Dra
     const a = draft.address
     const next: Record<string, string> = {}
     if (!draft.name.trim()) next.name = '受渡場所の名称を入力してください'
+    if (!a.prefecture) next.prefecture = '都道府県を選択してください（飲食店の受取エリアの検索に使います）'
     if (!a.city.trim()) next.city = '市区町村を入力してください'
     if (!`${a.town}${a.addressLine}`.trim()) next.addressLine = '町域・番地・目印のいずれかを入力してください'
     if (draft.showOnMap && !draft.latLng) next.showOnMap = '地図に表示するには、地図をタップして位置を指定してください'
@@ -84,7 +85,7 @@ function LocationEditor({ initial, editingId, onDone, onCancel }: { initial: Dra
       address: `${a.town.trim()}${a.addressLine.trim()}`,
       note: draft.note.trim(),
       postalCode: a.postalCode.trim() || null,
-      prefecture: a.prefecture || null,
+      prefecture: a.prefecture,
       town: a.town.trim() || null,
       latitude: draft.latLng?.lat ?? null,
       longitude: draft.latLng?.lng ?? null,

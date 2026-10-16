@@ -82,7 +82,7 @@ describe('条件を広げた場合の参考', () => {
     const far = listing({ id: 'D', quantityMilli: toMilli(10), pickupPointId: 'Q', pickupPointName: '北区の拠点', area: '大阪市北区' })
     const rel = run([A, B, C, far]).rel
     const area = rel.find((r) => r.kind === 'AREA')!
-    expect(area.patch).toEqual({ municipality: null })
+    expect(area.patch).toEqual({ municipality: null, radiusKm: null })
     expect(area.reachesTarget).toBe(true)
   })
 

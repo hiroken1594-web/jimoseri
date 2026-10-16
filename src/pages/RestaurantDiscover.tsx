@@ -4,12 +4,12 @@ import { Link } from 'react-router-dom'
 import type { MarketListing } from '../../shared/dto.js'
 import { formatDistance } from '../../shared/geo.js'
 import { formatQtyUnit, formatYen, IRREGULAR_LABEL, UNIT_LABEL } from '../../shared/labels.js'
-import { formatWindow } from '../../shared/time.js'
 import { DemoModeToggle } from '../components/DemoModeToggle.js'
 import { SearchDiagnostics } from '../components/SearchDiagnostics.js'
+import { formatMarketPickup } from '../../shared/schedule.js'
 import { CenterAndRadius, FilterFields } from '../components/SearchControls.js'
 import { EmptyState, itemEmoji, Loading, Notice, PageTitle } from '../components/ui.js'
-import { loadSearch, saveSearch, type SearchState } from '../lib/search.js'
+import { applyWider, loadSearch, saveSearch, type SearchState } from '../lib/search.js'
 import { useSession } from '../session.js'
 import { setFavorite, useMarketSearch } from '../lib/useMarket.js'
 
@@ -54,7 +54,7 @@ function saveSkipped(ids: Set<string>) {
  */
 export function RestaurantDiscover() {
   const { user } = useSession()
-  const [state, setState] = useState<SearchState>(() => loadSearch(user?.storePosition))
+  const [state, setState] = useState<SearchState>(() => loadSearch({ storePosition: user?.storePosition, prefecture: user?.address.prefecture }))
   const [picking, setPicking] = useState(false)
   const [skipped, setSkipped] = useState<Set<string>>(() => loadSkipped())
   const [saved, setSaved] = useState<Set<string>>(new Set())
@@ -66,7 +66,7 @@ export function RestaurantDiscover() {
   const [leaving, setLeaving] = useState<string | null>(null)
   const start = useRef<number | null>(null)
   const cardRef = useRef<HTMLElement>(null)
-  const { data, loading, error: searchError, reload } = useMarketSearch(state)
+  const { data, loading, error: searchError, needsArea, reload } = useMarketSearch(state)
 
   const update = (next: SearchState) => {
     setState(next)
@@ -153,14 +153,15 @@ export function RestaurantDiscover() {
   }
 
   const unit = card ? UNIT_LABEL[card.unit] : ''
-  const summary = state.center ? `${state.centerLabel || '指定地点'}から${state.radiusKm === null ? '距離指定なし' : `${state.radiusKm}km以内`}` : '距離指定なし（中心未指定）'
+  const area = state.prefecture ? `${state.prefecture}${state.municipality ? ` ${state.municipality}` : ''}` : '受取エリア未選択'
+  const summary = `${area}・` + (state.center ? `${state.centerLabel || '指定地点'}から${state.radiusKm === null ? '距離指定なし' : `${state.radiusKm}km以内`}` : '距離指定なし（中心未指定）')
 
   return (
     <>
       <PageTitle icon={Layers}>スワイプで発見</PageTitle>
       <p className="page-lead">右へスワイプ（または「気になる」）で保存、左へ（または「スキップ」）で次へ。保存しても注文にはなりません。</p>
 
-      <details className="alternatives">
+      <details className="alternatives" open={needsArea || undefined}>
         <summary>
           <SlidersHorizontal size={20} aria-hidden="true" style={{ marginRight: 8 }} />
           探す範囲：{summary}
@@ -192,7 +193,12 @@ export function RestaurantDiscover() {
           </div>
         </Notice>
       )}
-      {loading && !data && <Loading label="農産物を探しています…" />}
+      {needsArea && (
+        <Notice kind="warn" title="受取エリアを選択してください">
+          <p>「探す範囲」を開いて、受け取る都道府県を選んでください（市区町村は任意）。</p>
+        </Notice>
+      )}
+      {loading && !data && !needsArea && <Loading label="農産物を探しています…" />}
 
       {data && !card && skipped.size + saved.size > 0 && (
         <div className="swipe-done" role="status">
@@ -231,8 +237,7 @@ export function RestaurantDiscover() {
             </Link>
           }
         >
-          <p>探す範囲を広げるか、絞り込みの条件を減らしてみてください。表示されるのは、地図への公開を許可された受渡場所の出品だけです。</p>
-          <SearchDiagnostics diagnostics={data.diagnostics} demo={data.demo} />
+          <SearchDiagnostics diagnostics={data.diagnostics} demo={data.demo} onApply={(patch) => update(applyWider(state, patch))} />
         </EmptyState>
       )}
 
@@ -289,7 +294,7 @@ export function RestaurantDiscover() {
                 {card.distanceKm !== null && `（直線 ${formatDistance(card.distanceKm)}）`}
               </p>
               <p className="muted">
-                受渡 {formatWindow(card.pickupStartMs, card.pickupEndMs)}・{card.producerName}
+                受渡 {formatMarketPickup(card)}・{card.producerName}
               </p>
             </article>
           </div>

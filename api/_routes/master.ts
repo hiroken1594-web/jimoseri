@@ -7,6 +7,20 @@ import { isAiConfigured } from '../_lib/openai.js'
 import { toLocationDto } from '../_lib/places.js'
 import { getPrisma } from '../_lib/prisma.js'
 
+/** 受取エリアの選択肢（都道府県・市区町村の組）。都道府県が未登録の場所は選択肢にしない。 */
+function toAreas(places: { prefecture: string | null; municipality: string }[]): MasterData['areas'] {
+  const seen = new Set<string>()
+  const out: MasterData['areas'] = []
+  for (const p of places) {
+    if (!p.prefecture) continue
+    const key = `${p.prefecture}|${p.municipality}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ prefecture: p.prefecture, municipality: p.municipality })
+  }
+  return out
+}
+
 // 画面の選択肢と、公開してよい設定。秘密情報は含めない。
 export const GET = handle(async (request) => {
   const prisma = getPrisma()
@@ -27,9 +41,9 @@ export const GET = handle(async (request) => {
     // デモモード（お試し）の受取エリアの選択肢
     prisma.pickupLocation.findMany({
       where: { status: 'APPROVED', isDemo: true },
-      select: { municipality: true },
-      distinct: ['municipality'],
-      orderBy: { municipality: 'asc' },
+      select: { prefecture: true, municipality: true },
+      distinct: ['prefecture', 'municipality'],
+      orderBy: [{ prefecture: 'asc' }, { municipality: 'asc' }],
     }),
   ])
 
@@ -38,8 +52,8 @@ export const GET = handle(async (request) => {
     locations: producerId
       ? [...approved, ...mine].map((l) => toLocationDto(l, producerId))
       : [],
-    municipalities: [...new Set(approved.filter((l) => !l.isDemo).map((l) => l.municipality))],
-    demoMunicipalities: demoPlaces.map((l) => l.municipality),
+    areas: toAreas(approved.filter((l) => !l.isDemo)),
+    demoAreas: toAreas(demoPlaces),
     aiEnabled: isAiConfigured(),
     signupMode: signupMode(),
     operator: operatorInfo(),

@@ -1,4 +1,6 @@
-import { allocate, toMilli, type DemandSpec } from '../../shared/allocate.js'
+import { toMilli, type DemandSpec } from '../../shared/allocate.js'
+import { withinRadius } from '../../shared/geo.js'
+import { allocateScheduled } from '../../shared/schedule.js'
 import { suggestRelaxations } from '../../shared/relax.js'
 import type { PlanResponse, PublicContact } from '../../shared/dto.js'
 import { demandSchema, planCheckSchema } from '../../shared/schemas.js'
@@ -39,6 +41,8 @@ export const POST = handle(async (request) => {
     targetMs,
     pickupPointId: null,
     area: body.municipality,
+    prefecture: body.prefecture,
+    allowedPointIds: null,
     budgetMaxYen: body.budgetMaxYen,
     allowIrregular: body.allowIrregular,
     allowMultiLocation: body.allowMultiLocation,
@@ -48,7 +52,20 @@ export const POST = handle(async (request) => {
   const demoMode = body.demoMode ?? false
   const rows = await prisma.listing.findMany({ where: planEligibleWhere(item.id, demoMode), include: listingInclude })
   const candidates = rows.map(toCandidate)
-  const result = allocate(candidates, spec, nowMs)
+  // 検索地点と半径があれば、その内側の受渡場所だけを使う（位置が未登録の場所は対象外）
+  const center = body.center ?? null
+  const radiusKm = center ? (body.radiusKm ?? null) : null
+  if (center && radiusKm !== null) {
+    spec.allowedPointIds = [
+      ...new Set(
+        rows
+          .filter((r) => r.pickupLocation.latitude !== null && r.pickupLocation.longitude !== null)
+          .filter((r) => withinRadius(center, { lat: r.pickupLocation.latitude!, lng: r.pickupLocation.longitude! }, radiusKm))
+          .map((r) => r.pickupLocationId),
+      ),
+    ]
+  }
+  const result = allocateScheduled(candidates, spec, nowMs)
   // 希望量に届かないときだけ、条件を広げた場合の参考を計算する（元の案とは別に示す）
   const relaxations = suggestRelaxations(candidates, spec, result, nowMs, { date: body.date })
 
@@ -65,6 +82,7 @@ export const POST = handle(async (request) => {
         timeMode: body.timeMode,
         date: body.date,
         time: body.timeMode === 'EXACT' ? body.time : null,
+        prefecture: body.prefecture,
         municipality: body.municipality,
         budgetMaxYen: body.budgetMaxYen,
         allowIrregular: body.allowIrregular,
@@ -90,14 +108,21 @@ export const POST = handle(async (request) => {
     ...(result.multi?.stops.flatMap((s) => s.lines) ?? []),
   ]
   const usedListingIds = new Set(usedLines.map((l) => l.listingId))
+  // 受渡日時は、案ごとに選んだ回（期間の出品では、その日の時間帯）を示す
+  const chosenWindow = new Map<string, { startMs: number; endMs: number }>()
+  for (const p of [result.best, ...result.alternatives]) {
+    for (const l of p?.plan.lines ?? []) if (!chosenWindow.has(l.listingId)) chosenWindow.set(l.listingId, { startMs: p!.plan.windowStartMs, endMs: p!.plan.windowEndMs })
+  }
+  for (const s of result.multi?.stops ?? []) for (const l of s.lines) if (!chosenWindow.has(l.listingId)) chosenWindow.set(l.listingId, { startMs: s.windowStartMs, endMs: s.windowEndMs })
   const listingInfo: PlanResponse['listingInfo'] = {}
   const locations: PlanResponse['locations'] = {}
   const contacts: PlanResponse['contacts'] = {}
   for (const row of rows) {
     if (!usedListingIds.has(row.id)) continue
+    const w = chosenWindow.get(row.id)
     listingInfo[row.id] = {
-      pickupStartMs: row.pickupStart.getTime(),
-      pickupEndMs: row.pickupEnd.getTime(),
+      pickupStartMs: w?.startMs ?? row.pickupStart.getTime(),
+      pickupEndMs: w?.endMs ?? row.pickupEnd.getTime(),
       updatedAtMs: row.updatedAt.getTime(),
     }
     const loc = row.pickupLocation
@@ -123,7 +148,10 @@ export const POST = handle(async (request) => {
       timeMode: body.timeMode,
       date: body.date,
       time: body.timeMode === 'EXACT' ? body.time : null,
+      prefecture: body.prefecture,
       municipality: body.municipality,
+      center: center && radiusKm !== null ? center : null,
+      radiusKm: center ? radiusKm : null,
       budgetMaxYen: body.budgetMaxYen,
       allowIrregular: body.allowIrregular,
       allowMultiLocation: body.allowMultiLocation,

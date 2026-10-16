@@ -14,8 +14,16 @@ export function useMarketSearch(state: SearchState) {
   const [demo] = useDemoMode()
   const input = JSON.stringify({ ...toSearchInput(state), demo })
 
+  // 受取エリア（必須）が選ばれていない間は検索しない
+  const needsArea = !state.prefecture
+
   useEffect(() => {
     const my = ++seq.current
+    if (needsArea) {
+      setData(null)
+      setLoading(false)
+      return
+    }
     setLoading(true)
     const timer = setTimeout(async () => {
       try {
@@ -31,9 +39,9 @@ export function useMarketSearch(state: SearchState) {
       }
     }, 250)
     return () => clearTimeout(timer)
-  }, [input, reloadKey])
+  }, [input, reloadKey, needsArea])
 
-  return { data, loading, error, reload: () => setReloadKey((k) => k + 1), setData }
+  return { data, loading, error, needsArea, reload: () => setReloadKey((k) => k + 1), setData }
 }
 
 /** 「気になる」の登録・解除。注文・予約・在庫の確保ではない。 */

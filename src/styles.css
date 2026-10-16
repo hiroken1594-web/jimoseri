@@ -2438,3 +2438,71 @@ select.input {
 .btn-outline-dark:hover {
   background: rgb(51 51 51 / 0.08);
 }
+
+/* 曜日の選択（期間の出品） */
+.weekday-picker {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.weekday-picker button {
+  min-height: var(--tap);
+  border: 2px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.weekday-picker button[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--white);
+}
+
+/* 0件の理由と、条件を広げた場合の参考候補 */
+.diag {
+  text-align: left;
+}
+
+.diag-reason {
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--warn-100);
+  color: var(--warn-800);
+}
+
+.diag-reason p {
+  margin: 0;
+}
+
+.diag-wider {
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  border: 2px dashed var(--line-strong);
+  background: var(--white);
+}
+
+.diag-wider h3 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.diag-wider ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.diag-wider li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}

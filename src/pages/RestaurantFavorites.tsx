@@ -3,7 +3,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { FavoriteItem } from '../../shared/dto.js'
 import { formatQtyUnit, formatYen, IRREGULAR_LABEL, UNIT_LABEL } from '../../shared/labels.js'
-import { formatJstDateTime, formatWindow } from '../../shared/time.js'
+import { formatJstDateTime } from '../../shared/time.js'
+import { formatMarketPickup } from '../../shared/schedule.js'
 import { api, errorMessage } from '../api.js'
 import { EmptyState, itemEmoji, Loading, Notice, PageTitle } from '../components/ui.js'
 import { setDemoMode } from '../lib/demoMode.js'
@@ -106,7 +107,7 @@ export function RestaurantFavorites() {
                     　在庫 {formatQtyUnit(f.listing.quantityMilli, f.listing.unit)}
                     {f.listing.grade === 'IRREGULAR' && `・規格外（${f.listing.irregularReason ? IRREGULAR_LABEL[f.listing.irregularReason] : '理由未登録'}）`}
                   </p>
-                  <p className="muted">受渡 {formatWindow(f.listing.pickupStartMs, f.listing.pickupEndMs)}</p>
+                  <p className="muted">受渡 {formatMarketPickup(f.listing)}</p>
                 </>
               ) : (
                 <p className="field-hint">公開が止められたか、受渡日を過ぎたか、在庫がなくなりました。</p>

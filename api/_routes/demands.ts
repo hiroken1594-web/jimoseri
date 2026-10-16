@@ -23,7 +23,12 @@ export const GET = handle(async (request) => {
       timeMode: d.timeMode,
       date: d.date,
       time: d.time,
+      // 受取エリアが必須になる前の履歴は、都道府県が空（使うときに選び直してもらう）
+      prefecture: d.prefecture ?? '',
       municipality: d.municipality,
+      // 検索地点（現在地のこともある）は保存しないため、履歴からは距離の条件を戻さない
+      center: null,
+      radiusKm: null,
       budgetMaxYen: d.budgetMaxYen,
       allowIrregular: d.allowIrregular,
       allowMultiLocation: d.allowMultiLocation,

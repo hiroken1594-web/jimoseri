@@ -69,13 +69,18 @@ describe('位置の検証', () => {
   })
 
   it('検索の半径は決められた値だけ', () => {
-    expect(marketSearchSchema.safeParse({ center: OSAKA_STATION, radiusKm: 10 }).success).toBe(true)
-    expect(marketSearchSchema.safeParse({ center: null, radiusKm: null }).success).toBe(true)
-    expect(marketSearchSchema.safeParse({ center: OSAKA_STATION, radiusKm: 7 }).success).toBe(false)
+    expect(marketSearchSchema.safeParse({ prefecture: '大阪府', center: OSAKA_STATION, radiusKm: 10 }).success).toBe(true)
+    expect(marketSearchSchema.safeParse({ prefecture: '大阪府', center: null, radiusKm: null }).success).toBe(true)
+    expect(marketSearchSchema.safeParse({ prefecture: '大阪府', center: OSAKA_STATION, radiusKm: 7 }).success).toBe(false)
+    // 受取エリア（都道府県）は必須
+    expect(marketSearchSchema.safeParse({ center: null, radiusKm: null }).success).toBe(false)
+    expect(marketSearchSchema.safeParse({ prefecture: '', center: null, radiusKm: null }).success).toBe(false)
   })
 
   it('受渡拠点：地図に表示するには位置が必要。日本の外の位置は登録できない', () => {
-    const base = { name: 'テスト', municipality: '能勢町', address: 'テスト1-1', note: '' }
+    const base = { name: 'テスト', prefecture: '大阪府', municipality: '能勢町', address: 'テスト1-1', note: '' }
+    // 都道府県は必須（受取エリアの検索に使う）
+    expect(locationCreateSchema.safeParse({ ...base, prefecture: '' }).success).toBe(false)
     expect(locationCreateSchema.safeParse({ ...base, showOnMap: true }).success).toBe(false)
     expect(locationCreateSchema.safeParse({ ...base, showOnMap: true, latitude: 34.97, longitude: 135.41 }).success).toBe(true)
     expect(locationCreateSchema.safeParse({ ...base, latitude: 34.97 }).success).toBe(false)

@@ -16,7 +16,7 @@ const STALE_UPDATE_MS = 2 * DAY_MS
 
 const SUGGESTION: Record<ExclusionReason, string> = {
   IRREGULAR: '規格外品を「含めてよい」にすると候補が増えます。',
-  POINT: '受取エリアを「指定なし」にすると、他のエリアの受渡場所も対象になります。',
+  POINT: '受取エリアの市区町村や検索半径を広げると、他の受渡場所も対象になります（都道府県は必須です）。',
   TIME: '希望日・日時を変更すると候補が増える可能性があります。',
   UNIT: '個とkgなど、単位の異なる在庫は根拠なく換算しません。',
   MIN_LOT: '希望量を増やすと対象になる可能性があります。',
@@ -353,6 +353,12 @@ export function RestaurantPlan() {
           仕入れ案のまとめ
         </h3>
         <dl className="plan-summary">
+          <dt>受取エリア</dt>
+          <dd>
+            {d.prefecture || '未指定'}
+            {d.municipality ? ` ${d.municipality}` : '（全体）'}
+            {d.center && d.radiusKm ? `・検索地点から${d.radiusKm}km以内` : ''}
+          </dd>
           <dt>希望数量</dt>
           <dd>
             {d.itemName} {qty(result.demandMilli)}

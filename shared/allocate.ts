@@ -1,5 +1,6 @@
 // 仕入れ案の配分ロジック（仕様 11-3）。
 // AI・DB に依存しない純粋な関数。数量は丸め誤差を避けるため 1/1000 単位の整数（ミリ）で扱う。
+import type { PickupSchedule } from './schedule.js'
 
 export type Unit = 'KG' | 'PIECE' | 'BUNCH' | 'BAG'
 export type Grade = 'REGULAR' | 'IRREGULAR'
@@ -27,8 +28,12 @@ export interface ListingCandidate {
   pickupPointName: string
   /** 受渡場所の市区町村（受取エリアでの絞り込みに使う） */
   area?: string
+  /** 受渡場所の都道府県（受取エリアでの絞り込みに使う） */
+  prefecture?: string | null
   pickupStartMs: number
   pickupEndMs: number
+  /** 受渡の期間（曜日・時間帯）。null・未指定は1日だけの出品。期間の出品は allocateScheduled で日ごとの回に直してから計算する。 */
+  schedule?: PickupSchedule | null
   isPublished: boolean
   updatedAtMs: number
 }
@@ -43,6 +48,10 @@ export interface DemandSpec {
   pickupPointId: string | null
   /** 受取エリア（市区町村）。指定した場合、そのエリアの受渡場所だけを対象にする。 */
   area?: string | null
+  /** 受取エリア（都道府県）。指定した場合、その都道府県の受渡場所だけを対象にする。 */
+  prefecture?: string | null
+  /** 検索地点からの半径の内側にある受渡場所の ID。null・未指定は距離で絞り込まない。 */
+  allowedPointIds?: string[] | null
   budgetMaxYen: number | null
   allowIrregular: boolean
   /** 複数の場所での受け取りを許可するか。未指定はオフ。 */
@@ -440,7 +449,9 @@ export function allocate(
     if (l.unit !== demand.unit) exclude('UNIT', l)
     else if (l.grade === 'IRREGULAR' && !demand.allowIrregular) exclude('IRREGULAR', l)
     else if (demand.pickupPointId !== null && l.pickupPointId !== demand.pickupPointId) exclude('POINT', l)
+    else if (demand.prefecture && l.prefecture !== demand.prefecture) exclude('POINT', l)
     else if (demand.area && l.area !== demand.area) exclude('POINT', l)
+    else if (demand.allowedPointIds && !demand.allowedPointIds.includes(l.pickupPointId)) exclude('POINT', l)
     else if (!windowOk(l.pickupStartMs, l.pickupEndMs, demand, nowMs)) exclude('TIME', l)
     else if (maxLatticeAtMost(l, Math.min(l.quantityMilli, demand.quantityMilli)) === 0) exclude('MIN_LOT', l)
     else {

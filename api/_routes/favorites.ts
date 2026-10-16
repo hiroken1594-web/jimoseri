@@ -1,19 +1,16 @@
 // 飲食店の「気になる」（お気に入り）。保存しても注文・予約・在庫の確保にはならず、生産者への通知もしない。
-import { toMilli } from '../../shared/allocate.js'
 import type { FavoriteItem } from '../../shared/dto.js'
 import { favoriteSchema } from '../../shared/schemas.js'
 import { requireActor } from '../_lib/auth.js'
 import { handle, HttpError, json, readBody } from '../_lib/http.js'
+import { stillAvailable, toMarketListing, type MarketRow } from '../_lib/market-listing.js'
 import { getPrisma } from '../_lib/prisma.js'
 import { requireAllowed } from '../_lib/throttle.js'
 
 /** 飲食店に見せてよい出品か（地図に出していない拠点の出品も含む。仕入れ案と同じ審査条件） */
-function visible(row: {
+function visible(row: MarketRow & {
   isPublished: boolean
   adminSuspended: boolean
-  isDemo: boolean
-  quantity: unknown
-  pickupEnd: Date
   producer: { approvalStatus: string; isDemo: boolean; user: { suspended: boolean } }
   pickupLocation: { status: string; isDemo: boolean }
 }): boolean {
@@ -24,7 +21,7 @@ function visible(row: {
     row.isDemo === row.producer.isDemo &&
     row.isDemo === row.pickupLocation.isDemo &&
     Number(row.quantity) > 0 &&
-    row.pickupEnd.getTime() > Date.now() &&
+    stillAvailable(row, Date.now()) &&
     row.producer.approvalStatus === 'APPROVED' &&
     !row.producer.user.suspended &&
     row.pickupLocation.status === 'APPROVED'
@@ -40,6 +37,7 @@ export const GET = handle(async (request) => {
     orderBy: { createdAt: 'desc' },
     take: 200,
   })
+  const nowMs = Date.now()
   const favorites: FavoriteItem[] = rows.map((f) => {
     const l = f.listing
     const ok = visible(l)
@@ -52,26 +50,7 @@ export const GET = handle(async (request) => {
       isDemo: l.isDemo,
       locationName: ok ? l.pickupLocation.name : null,
       listing: ok
-        ? {
-            id: l.id,
-            itemId: l.itemId,
-            itemName: l.item.name,
-            variety: l.variety,
-            grade: l.grade,
-            irregularReason: l.irregularReason,
-            quantityMilli: toMilli(Number(l.quantity)),
-            unit: l.unit,
-            unitPriceYen: l.unitPriceTaxIncl,
-            minMilli: toMilli(Number(l.minQuantity)),
-            stepMilli: toMilli(Number(l.stepQuantity)),
-            pickupStartMs: l.pickupStart.getTime(),
-            pickupEndMs: l.pickupEnd.getTime(),
-            producerId: l.producerId,
-            producerName: l.producer.farmName,
-            updatedAtMs: l.updatedAt.getTime(),
-            isFavorite: true,
-            isDemo: l.isDemo,
-          }
+        ? toMarketListing(l, new Set([l.id]), nowMs)
         : null,
     }
   })
@@ -86,7 +65,7 @@ export const POST = handle(async (request) => {
   const prisma = getPrisma()
   const listing = await prisma.listing.findUnique({
     where: { id: body.listingId },
-    include: { producer: { include: { user: true } }, pickupLocation: true },
+    include: { item: true, producer: { include: { user: true } }, pickupLocation: true },
   })
   if (!listing || !visible(listing)) throw new HttpError(404, 'NOT_FOUND', 'この出品は現在保存できません。公開が止められたか、受渡日を過ぎた可能性があります。')
   await prisma.favorite.upsert({

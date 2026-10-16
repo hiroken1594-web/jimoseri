@@ -1,6 +1,7 @@
 // 希望量に届かないときの「条件を広げた場合の参考」。
 // 元の条件で作った仕入れ案とは別に計算し、利用者が選んだときだけ条件を変えて計算し直す（勝手に条件を変えない）。
-import { allocate, type AllocationResult, type DemandSpec, type ListingCandidate } from './allocate.js'
+import type { AllocationResult, DemandSpec, ListingCandidate } from './allocate.js'
+import { allocateScheduled as allocate } from './schedule.js'
 import { formatQtyUnit } from './labels.js'
 import { addDaysJst, endOfJstDayMs, formatJstDate, jstToMs } from './time.js'
 
@@ -17,7 +18,7 @@ export interface Relaxation {
   /** 希望量に届くか */
   reachesTarget: boolean
   /** 画面で「この条件で計算し直す」を選んだときに変える項目 */
-  patch: { date?: string; timeMode?: 'DEADLINE'; time?: null; municipality?: null; allowIrregular?: true; allowMultiLocation?: true }
+  patch: { date?: string; timeMode?: 'DEADLINE'; time?: null; municipality?: null; radiusKm?: null; allowIrregular?: true; allowMultiLocation?: true }
 }
 
 /** 1か所の案と複数か所の参考案のうち、集められる量の多いほう */
@@ -63,8 +64,14 @@ export function suggestRelaxations(
   }
 
   // 受取エリア：指定をやめて、他のエリアの受渡場所も対象にする
-  if (spec.area) {
-    push(allocate(candidates, { ...spec, area: null, allowMultiLocation: false }, nowMs), 'AREA', '受取エリアを指定しない（他のエリアの受渡場所も探す）', { municipality: null })
+  // 都道府県は必須のため外さない。市区町村と検索の半径をやめる。
+  if (spec.area || spec.allowedPointIds) {
+    push(
+      allocate(candidates, { ...spec, area: null, allowedPointIds: null, allowMultiLocation: false }, nowMs),
+      'AREA',
+      spec.prefecture ? `市区町村・半径を指定しない（${spec.prefecture}全体で探す）` : '受取エリアを広げる（他の受渡場所も探す）',
+      { municipality: null, radiusKm: null },
+    )
   }
 
   // 規格外品も含める

@@ -89,7 +89,7 @@ const locations = {
     data: { name: 'デモ集荷場（お試し用）', municipality: '豊能町', prefecture: '大阪府', address: '架空の住所（お試し用）', note: 'デモデータ（お試し用）', status: 'APPROVED', isDemo: true, createdById: producer.id, latitude: 34.9201, longitude: 135.4917, showOnMap: true },
   }),
   pending: await prisma.pickupLocation.create({
-    data: { name: 'デモ軒先（お試し用・確認待ち）', municipality: '能勢町', address: '架空の住所（お試し用）', note: 'デモデータ（お試し用）', status: 'PENDING', isDemo: true, createdById: producer.id },
+    data: { name: 'デモ軒先（お試し用・確認待ち）', municipality: '能勢町', prefecture: '大阪府', address: '架空の住所（お試し用）', note: 'デモデータ（お試し用）', status: 'PENDING', isDemo: true, createdById: producer.id },
   }),
 }
 
@@ -139,6 +139,20 @@ const PLAN: { kind: 'active' | 'stopped' | 'soldout' | 'expired' | 'suspended' |
   { kind: 'pending', count: 2 },
 ]
 
+// 受渡の「期間」：作成した日（今日）を基準に、開始日〜終了日の、決まった曜日・時間帯。
+// 固定の日付ではないので、作り直せばいつでも「いま受け取れる」状態になる（終了日は2〜4か月先）。
+const WEEKDAY_PATTERNS = [127, 127, 127, 0b0111110, 0b0101010, 0b1010100, 0b1111110]
+const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
+function periodFrom(startOffset: number, endOffset: number, weekdays: number, start: string, end: string) {
+  return {
+    pickupStart: new Date(jstToMs(addDaysJst(today, startOffset), start)),
+    pickupEnd: new Date(jstToMs(addDaysJst(today, endOffset), end)),
+    pickupWeekdays: weekdays,
+    pickupStartMin: toMin(start),
+    pickupEndMin: toMin(end),
+  }
+}
+
 const rows = []
 let n = 0
 for (const { kind, count } of PLAN) {
@@ -146,10 +160,12 @@ for (const { kind, count } of PLAN) {
     const c = CATALOG[n % CATALOG.length]
     const price = Math.round(between(c.price[0], c.price[1]) / 10) * 10
     const qty = kind === 'soldout' ? 0 : roundTo(between(c.qty[0], c.qty[1]), c.step)
-    // 受渡日：期限切れは過去、それ以外は今日から10日先まで
+    // 受渡日：期限切れは過去、それ以外は今日から10日先まで。公開中の3分の2は「期間」（今日を基準に、数日前〜2〜4か月先）にする
     const day = kind === 'expired' ? addDaysJst(today, -Math.ceil(between(1, 20))) : addDaysJst(today, Math.ceil(between(0.5, 10)))
     const [start, end] = pick(TIMES)
-    const pickupStart = jstToMs(day, start)
+    const periodic = kind === 'active' && i % 3 !== 0
+    const period = periodic ? periodFrom(-Math.floor(between(0, 5)), Math.floor(between(60, 120)), pick(WEEKDAY_PATTERNS), start, end) : null
+    const pickupStart = period ? period.pickupStart.getTime() : jstToMs(day, start)
     // 登録日：受渡日の1〜20日前（未来にはしない）
     const createdAtMs = Math.min(now - 60_000, pickupStart - Math.ceil(between(1, 20)) * DAY_MS + Math.round(between(0, 10)) * 3600_000)
     // 最終更新：登録日以降。一部は数日前のまま（「更新が古い」の表示を試せる）
@@ -169,7 +185,10 @@ for (const { kind, count } of PLAN) {
       stepQuantity: c.step,
       pickupLocationId: kind === 'pending' ? locations.pending.id : rand() < 0.65 ? locations.stand.id : locations.hub.id,
       pickupStart: new Date(pickupStart),
-      pickupEnd: new Date(jstToMs(day, end)),
+      pickupEnd: period ? period.pickupEnd : new Date(jstToMs(day, end)),
+      pickupWeekdays: period?.pickupWeekdays ?? null,
+      pickupStartMin: period?.pickupStartMin ?? null,
+      pickupEndMin: period?.pickupEndMin ?? null,
       isPublished: kind !== 'stopped',
       adminSuspended: kind === 'suspended',
       isDemo: true,
@@ -276,6 +295,8 @@ for (const [region, count] of REGION_COUNTS) {
       if (hub.municipality === SCENARIO_CITY && c.item === 'トマト') c = CATALOG.find((x) => x.item === 'キャベツ')!
       const day = addDaysJst(today, 1 + Math.floor(rand() * 7))
       const [start, end] = slotOf(hubIndex)
+      // 85% は期間の出品（今日の0〜6日前から、60〜120日先まで）。残りは1〜7日先の1日だけの出品。
+      const period = rand() < 0.85 ? periodFrom(-Math.floor(rand() * 7), 60 + Math.floor(rand() * 61), pick(WEEKDAY_PATTERNS), start, end) : null
       const irregular = rand() < 0.2
       const price = Math.round(between(c.price[0], c.price[1]) / 10) * 10
       const createdAtMs = now - Math.ceil(between(1, 25)) * DAY_MS
@@ -291,8 +312,11 @@ for (const [region, count] of REGION_COUNTS) {
         minQuantity: c.min,
         stepQuantity: c.step,
         pickupLocationId: hub.id,
-        pickupStart: new Date(jstToMs(day, start)),
-        pickupEnd: new Date(jstToMs(day, end)),
+        pickupStart: period ? period.pickupStart : new Date(jstToMs(day, start)),
+        pickupEnd: period ? period.pickupEnd : new Date(jstToMs(day, end)),
+        pickupWeekdays: period?.pickupWeekdays ?? null,
+        pickupStartMin: period?.pickupStartMin ?? null,
+        pickupEndMin: period?.pickupEndMin ?? null,
         isPublished: rand() > 0.05,
         adminSuspended: false,
         isDemo: true,
@@ -303,18 +327,20 @@ for (const [region, count] of REGION_COUNTS) {
   }
 }
 
-// 検証用の組み合わせ（大阪市福島区）：明後日10〜11時に、トマトを 5kg・2kg・1kg の3農家が出品 → 10kg の希望に対して 8kg・2kg不足。
-// 近くの別拠点（大阪市北区）には同じ日時に 3kg、同じ拠点の翌日（明々後日）には1農家で 10kg を置き、「条件を広げた場合の参考」を確かめられるようにする。
+// 検証用の組み合わせ（大阪市福島区）：今日から90日間、毎日10〜11時に、トマトを 5kg・2kg・1kg の3農家が出品 → 10kg の希望に対して 8kg・2kg不足。
+// 近くの別拠点（大阪市北区）には同じ期間・時間帯に 3kg、同じ拠点には明々後日から1農家で 10kg を置き、「条件を広げた場合の参考」を確かめられるようにする。
 const scenarioHub = hubRows.find((h) => h.municipality === SCENARIO_CITY)!
 const kitaHub = hubRows.find((h) => h.municipality === '大阪市北区')!
-const scenario: [string, string, number, number, string, string][] = [
-  ['S1', 'デモ検証農園A（お試し用）', 5, 600, scenarioHub.id, addDaysJst(today, 2)],
-  ['S2', 'デモ検証農園B（お試し用）', 2, 550, scenarioHub.id, addDaysJst(today, 2)],
-  ['S3', 'デモ検証農園C（お試し用）', 1, 350, scenarioHub.id, addDaysJst(today, 2)],
-  ['S4', 'デモ検証農園D（お試し用）', 3, 580, kitaHub.id, addDaysJst(today, 2)],
-  ['S5', 'デモ検証農園E（お試し用）', 10, 560, scenarioHub.id, addDaysJst(today, 3)],
+// [コード, 名前, 数量kg, 単価, 拠点, 期間の開始（今日から何日後）]
+const scenario: [string, string, number, number, string, number][] = [
+  ['S1', 'デモ検証農園A（お試し用）', 5, 600, scenarioHub.id, 0],
+  ['S2', 'デモ検証農園B（お試し用）', 2, 550, scenarioHub.id, 0],
+  ['S3', 'デモ検証農園C（お試し用）', 1, 350, scenarioHub.id, 0],
+  ['S4', 'デモ検証農園D（お試し用）', 3, 580, kitaHub.id, 0],
+  ['S5', 'デモ検証農園E（お試し用）', 10, 560, scenarioHub.id, 3],
 ]
-for (const [code, farmName, qty, price, hubId, day] of scenario) {
+for (const [code, farmName, qty, price, hubId, startOffset] of scenario) {
+  const period = periodFrom(startOffset, 90, 127, '10:00', '11:00')
   userRows.push({ id: `demo-user-${code}`, name: farmName, email: `demo_${code.toLowerCase()}@users.jimoseri.invalid`, emailVerified: true, username: `demo_${code.toLowerCase()}`, displayUsername: `demo_${code.toLowerCase()}`, role: 'PRODUCER', orgName: farmName, area: SCENARIO_CITY, signupRole: 'PRODUCER' })
   producerRows.push({ id: `demo-prod-${code}`, userId: `demo-user-${code}`, farmName, area: SCENARIO_CITY, approvalStatus: 'APPROVED', isDemo: true, prefecture: '大阪府', city: SCENARIO_CITY })
   manyListings.push({
@@ -329,8 +355,7 @@ for (const [code, farmName, qty, price, hubId, day] of scenario) {
     minQuantity: 1,
     stepQuantity: 1,
     pickupLocationId: hubId,
-    pickupStart: new Date(jstToMs(day, '10:00')),
-    pickupEnd: new Date(jstToMs(day, '11:00')),
+    ...period,
     isPublished: true,
     adminSuspended: false,
     isDemo: true,

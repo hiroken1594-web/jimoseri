@@ -1,5 +1,6 @@
 import type { TimeMode, Unit } from '../../shared/allocate.js'
 import type { ExtractedFields } from '../../shared/dto.js'
+import type { LatLng } from '../../shared/geo.js'
 import type { DemandInput } from '../../shared/schemas.js'
 import { jstDateString } from '../../shared/time.js'
 
@@ -21,8 +22,14 @@ export interface DemandForm {
   timeMode: TimeMode
   date: string
   time: string
-  /** 受取エリア（市区町村）。'' は「指定なし」 */
+  /** 受取エリア（必須）：都道府県 */
+  prefecture: string
+  /** 受取エリア（市区町村）。'' は「指定なし（都道府県全体）」 */
   municipality: string
+  /** 検索地点（任意）と半径。半径 null は距離で絞り込まない */
+  center: LatLng | null
+  centerLabel: string
+  radiusKm: number | null
   budget: string
   /** null は未選択。AI が読み取れなかった場合も推測せず未選択のままにする。 */
   allowIrregular: boolean | null
@@ -37,7 +44,11 @@ export const emptyDemandForm = (): DemandForm => ({
   timeMode: 'DEADLINE',
   date: '',
   time: '',
+  prefecture: '',
   municipality: '',
+  center: null,
+  centerLabel: '',
+  radiusKm: null,
   budget: '',
   allowIrregular: null,
   allowMultiLocation: false,
@@ -66,7 +77,11 @@ export function formFromInput(input: DemandInput): DemandForm {
     timeMode: input.timeMode,
     date: input.date,
     time: input.time ?? '',
+    prefecture: input.prefecture ?? '',
     municipality: input.municipality ?? '',
+    center: input.center ?? null,
+    centerLabel: input.center ? '前回の検索地点' : '',
+    radiusKm: input.radiusKm ?? null,
     budget: input.budgetMaxYen === null ? '' : String(input.budgetMaxYen),
     allowIrregular: input.allowIrregular,
     allowMultiLocation: input.allowMultiLocation,
@@ -81,6 +96,7 @@ export function validateDemandForm(
 ): { ok: true; payload: DemandInput } | { ok: false; errors: FormErrors } {
   const errors: FormErrors = {}
   if (!form.itemId) errors.itemId = '品目を選択してください'
+  if (!form.prefecture) errors.prefecture = '受取エリアを選択してください'
   const quantity = parseNumber(form.quantity)
   if (quantity === null || quantity <= 0) errors.quantity = '数量を数字で入力してください'
   if (!form.date) errors.date = '希望日を選択してください'
@@ -102,7 +118,10 @@ export function validateDemandForm(
       timeMode: form.timeMode,
       date: form.date,
       time: form.timeMode === 'EXACT' ? form.time : null,
+      prefecture: form.prefecture,
       municipality: form.municipality || null,
+      center: form.center && form.radiusKm !== null ? form.center : null,
+      radiusKm: form.center ? (form.radiusKm as DemandInput['radiusKm']) : null,
       budgetMaxYen: budget,
       allowIrregular: form.allowIrregular!,
       // 日時を固定指定した場合は、複数の場所の案は作らない

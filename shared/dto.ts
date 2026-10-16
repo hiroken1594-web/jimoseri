@@ -2,6 +2,7 @@
 import type { AllocationResult, Grade, IrregularReason, TimeMode, Unit } from './allocate.js'
 import type { Relaxation } from './relax.js'
 import type { DemandInput } from './schemas.js'
+import type { PickupSchedule } from './schedule.js'
 
 export type Role = 'RESTAURANT' | 'PRODUCER' | 'ADMIN'
 export type ReviewStatus = 'PENDING' | 'APPROVED' | 'SUSPENDED'
@@ -76,8 +77,11 @@ export interface MarketListing {
   unitPriceYen: number
   minMilli: number
   stepMilli: number
+  /** 次に受け取れる回（期間の出品では、これからの最初の回） */
   pickupStartMs: number
   pickupEndMs: number
+  /** 期間の出品：期間の最初・最後と曜日・時間帯。1日だけの出品は null */
+  period: { startMs: number; endMs: number; schedule: PickupSchedule } | null
   producerId: string
   producerName: string
   updatedAtMs: number
@@ -103,10 +107,23 @@ export interface MarketLocation {
 }
 
 /** 0件のときの理由（条件を1つずつ足したときに何件残るか） */
+/** 検索の条件の段階（0件の理由の表示に使う） */
+export type MarketStageKey = 'PUBLISHED' | 'PRODUCER' | 'LOCATION' | 'MAP' | 'AREA' | 'FILTER' | 'DATE' | 'RADIUS'
+
+/** 条件を広げた場合の参考候補（元の条件には一致しない） */
+export interface MarketWider {
+  key: 'RADIUS' | 'NO_RADIUS' | 'DATE' | 'MUNICIPALITY'
+  label: string
+  /** 条件を広げた場合に見つかる出品の数 */
+  count: number
+  patch: { radiusKm?: number | null; date?: null; municipality?: null }
+}
+
 export interface MarketDiagnostics {
-  stages: { label: string; count: number }[]
-  /** 通常の検索で0件のとき、デモモードで見られる出品の数 */
+  stages: { key: MarketStageKey; label: string; count: number }[]
+  /** 通常の検索で0件のとき、デモモードで見られる出品の数（同じ条件） */
   demoAvailable: number
+  wider: MarketWider[]
 }
 
 export interface MarketSearchResponse {
@@ -131,10 +148,10 @@ export interface MasterData {
   items: { id: string; name: string }[]
   /** 生産者：確認済みの場所＋自分が登録した場所。それ以外の利用者には空。 */
   locations: LocationDto[]
-  /** 飲食店が受取エリアとして選べる市区町村（確認済みの場所があるもの） */
-  municipalities: string[]
+  /** 受取エリアの選択肢：確認済みの受渡場所がある都道府県・市区町村 */
+  areas: { prefecture: string; municipality: string }[]
   /** デモモード（お試し）で使う受取エリア */
-  demoMunicipalities: string[]
+  demoAreas: { prefecture: string; municipality: string }[]
   aiEnabled: boolean
   signupMode: SignupMode
   operator: { name: string; email: string } | null
@@ -149,6 +166,8 @@ export type ListingBlocker =
   | 'PRODUCER_SUSPENDED'
   | 'LOCATION_PENDING'
   | 'LOCATION_SUSPENDED'
+  /** 受渡場所の都道府県が未登録（飲食店の受取エリアの検索に出ない） */
+  | 'LOCATION_NO_PREFECTURE'
   | 'ADMIN_SUSPENDED'
 
 export interface ListingDto {
@@ -165,8 +184,11 @@ export interface ListingDto {
   stepMilli: number
   pickupLocationId: string
   pickupLocationName: string
+  /** 1日だけの出品：受渡の開始・終了。期間の出品：最初の回の開始・最後の回の終了 */
   pickupStartMs: number
   pickupEndMs: number
+  /** 期間の出品の曜日・時間帯。1日だけの出品は null */
+  schedule: PickupSchedule | null
   isPublished: boolean
   updatedAtMs: number
   blockers: ListingBlocker[]
@@ -182,7 +204,12 @@ export interface ConfirmedDemand {
   timeMode: TimeMode
   date: string
   time: string | null
+  /** 受取エリア：都道府県と市区町村（null は都道府県全体） */
+  prefecture: string
   municipality: string | null
+  /** 検索地点と半径（指定した場合だけ） */
+  center: { lat: number; lng: number } | null
+  radiusKm: number | null
   budgetMaxYen: number | null
   allowIrregular: boolean
   allowMultiLocation: boolean

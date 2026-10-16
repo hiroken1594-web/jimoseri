@@ -2,15 +2,15 @@ import { ArrowDownWideNarrow, Heart, Layers, List, Map as MapIcon, MapPin, Navig
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { MarketListing, MarketLocation } from '../../shared/dto.js'
-import { DEFAULT_CENTER, formatDistance, RADIUS_OPTIONS } from '../../shared/geo.js'
+import { DEFAULT_CENTER, formatDistance } from '../../shared/geo.js'
 import { formatQtyUnit, formatYen, IRREGULAR_LABEL, UNIT_LABEL } from '../../shared/labels.js'
-import { formatWindow } from '../../shared/time.js'
 import { DemoModeToggle } from '../components/DemoModeToggle.js'
+import { formatMarketPickup } from '../../shared/schedule.js'
 import { MapView } from '../components/MapView.js'
 import { SearchDiagnostics } from '../components/SearchDiagnostics.js'
 import { CenterAndRadius, FilterFields } from '../components/SearchControls.js'
 import { EmptyState, itemEmoji, Loading, Notice, PageTitle } from '../components/ui.js'
-import { loadSearch, saveSearch, type SearchState } from '../lib/search.js'
+import { applyWider, loadSearch, saveSearch, type SearchState } from '../lib/search.js'
 import { useSession } from '../session.js'
 import { useMarketSearch } from '../lib/useMarket.js'
 
@@ -32,7 +32,7 @@ function ListingRow({ listing }: { listing: MarketListing }) {
           {listing.grade === 'IRREGULAR' && `・規格外（${listing.irregularReason ? IRREGULAR_LABEL[listing.irregularReason] : '理由未登録'}）`}
           {listing.isFavorite && '・気になる登録済み'}
         </span>
-        <span className="listing-row-sub block">受渡 {formatWindow(listing.pickupStartMs, listing.pickupEndMs)}</span>
+        <span className="listing-row-sub block">受渡 {formatMarketPickup(listing)}</span>
       </span>
       <span className="price">
         {formatYen(listing.unitPriceYen)}
@@ -75,7 +75,7 @@ function LocationCard({ loc, headingLevel = 3 }: { loc: MarketLocation; headingL
 
 export function RestaurantMap() {
   const { user } = useSession()
-  const [state, setState] = useState<SearchState>(() => loadSearch(user?.storePosition))
+  const [state, setState] = useState<SearchState>(() => loadSearch({ storePosition: user?.storePosition, prefecture: user?.address.prefecture }))
   const [view, setView] = useState<'map' | 'list'>('map')
   const [sort, setSort] = useState<'distance' | 'price'>('distance')
   const [picking, setPicking] = useState(false)
@@ -84,7 +84,7 @@ export function RestaurantMap() {
     setState(next)
     saveSearch(next)
   }
-  const { data, loading, error, reload } = useMarketSearch(state)
+  const { data, loading, error, needsArea, reload } = useMarketSearch(state)
 
   const locations = useMemo(() => {
     const list = [...(data?.locations ?? [])]
@@ -93,7 +93,6 @@ export function RestaurantMap() {
   }, [data, sort])
   const listingCount = locations.reduce((n, l) => n + l.listings.length, 0)
   const selected = locations.find((l) => l.id === selectedId) ?? null
-  const nextRadius = state.radiusKm === null ? null : RADIUS_OPTIONS.find((r) => r !== null && r > state.radiusKm!) ?? null
 
   return (
     <>
@@ -128,7 +127,7 @@ export function RestaurantMap() {
 
       <div className="result-loc-head" aria-live="polite">
         <p>
-          <strong>{loading ? '検索中…' : `受渡場所 ${locations.length}か所・農産物 ${listingCount}件`}</strong>
+          <strong>{needsArea ? '受取エリアが未選択です' : loading ? '検索中…' : `受渡場所 ${locations.length}か所・農産物 ${listingCount}件`}</strong>
           {state.center && state.radiusKm !== null && !loading && <span className="muted">（{state.centerLabel || '指定地点'}から{state.radiusKm}km以内）</span>}
         </p>
         <div className="segmented" role="group" aria-label="並び替え" style={{ flex: 'none' }}>
@@ -199,31 +198,15 @@ export function RestaurantMap() {
         </div>
       )}
 
-      {data && !loading && locations.length === 0 && (
-        <EmptyState
-          illust="🗺️"
-          title="条件に合う農産物が見つかりませんでした"
-          action={
-            <div className="actions">
-              {nextRadius !== null && (
-                <button className="btn btn-primary" onClick={() => update({ ...state, radiusKm: nextRadius })}>
-                  {nextRadius}kmに広げる
-                </button>
-              )}
-              {state.radiusKm !== null && state.center && (
-                <button className="btn" onClick={() => update({ ...state, radiusKm: null })}>
-                  距離指定なしで探す
-                </button>
-              )}
-            </div>
-          }
-        >
-          <p>
-            {data.outsideCount > 0
-              ? `範囲の外に、受渡場所が${data.outsideCount}か所あります。検索する範囲を広げてみてください。`
-              : '絞り込みの条件を減らすか、別の場所を中心にしてみてください。地図に表示されるのは、生産者が地図への公開を許可し、運営者が確認した受渡場所だけです。'}
-          </p>
-          <SearchDiagnostics diagnostics={data.diagnostics} demo={data.demo} />
+      {needsArea && (
+        <Notice kind="warn" title="受取エリアを選択してください">
+          <p>上の「どこで受け取りますか」で都道府県を選ぶと検索します（市区町村は任意）。</p>
+        </Notice>
+      )}
+
+      {data && !loading && !needsArea && locations.length === 0 && (
+        <EmptyState illust="🗺️" title="条件に合う農産物が見つかりませんでした">
+          <SearchDiagnostics diagnostics={data.diagnostics} demo={data.demo} onApply={(patch) => update(applyWider(state, patch))} />
         </EmptyState>
       )}
 

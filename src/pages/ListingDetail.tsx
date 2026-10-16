@@ -3,7 +3,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import type { ListingDetail as Detail } from '../../shared/dto.js'
 import { formatQtyUnit, formatYen, IRREGULAR_LABEL, UNIT_LABEL } from '../../shared/labels.js'
-import { formatJstDateTime, formatWindow } from '../../shared/time.js'
+import { formatJstDateTime } from '../../shared/time.js'
+import { formatMarketPickup } from '../../shared/schedule.js'
 import { api, errorMessage } from '../api.js'
 import { MapView } from '../components/MapView.js'
 import { ReportButton } from '../components/ReportButton.js'
@@ -116,7 +117,7 @@ export function ListingDetail() {
         </div>
         <div className="hero-stats-wide">
           <dt>受渡できる日時</dt>
-          <dd>{formatWindow(listing.pickupStartMs, listing.pickupEndMs)}</dd>
+          <dd>{formatMarketPickup(listing)}</dd>
         </div>
       </dl>
       <p className="muted">

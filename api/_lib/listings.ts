@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { toMilli, type ListingCandidate } from '../../shared/allocate.js'
 import type { ListingBlocker, ListingDto } from '../../shared/dto.js'
+import type { PickupSchedule } from '../../shared/schedule.js'
 import type { Prisma } from '../../generated/prisma/client.js'
 
 export const listingInclude = {
@@ -33,6 +34,7 @@ export function listingBlockers(row: ListingRow): ListingBlocker[] {
   if (row.producer.approvalStatus === 'SUSPENDED' || row.producer.user.suspended) blockers.push('PRODUCER_SUSPENDED')
   if (row.pickupLocation.status === 'PENDING') blockers.push('LOCATION_PENDING')
   if (row.pickupLocation.status === 'SUSPENDED') blockers.push('LOCATION_SUSPENDED')
+  if (!row.pickupLocation.prefecture) blockers.push('LOCATION_NO_PREFECTURE')
   if (row.adminSuspended) blockers.push('ADMIN_SUSPENDED')
   return blockers
 }
@@ -54,11 +56,19 @@ export function toCandidate(row: ListingRow): ListingCandidate {
     pickupPointId: row.pickupLocationId,
     pickupPointName: row.pickupLocation.name,
     area: row.pickupLocation.municipality,
+    prefecture: row.pickupLocation.prefecture,
     pickupStartMs: row.pickupStart.getTime(),
     pickupEndMs: row.pickupEnd.getTime(),
+    schedule: scheduleOf(row),
     isPublished: row.isPublished,
     updatedAtMs: row.updatedAt.getTime(),
   }
+}
+
+/** 期間の出品なら、受け取れる曜日と時間帯。1日だけの出品は null。 */
+export function scheduleOf(row: { pickupWeekdays: number | null; pickupStartMin: number | null; pickupEndMin: number | null }): PickupSchedule | null {
+  if (row.pickupWeekdays == null || row.pickupStartMin == null || row.pickupEndMin == null) return null
+  return { weekdays: row.pickupWeekdays, startMin: row.pickupStartMin, endMin: row.pickupEndMin }
 }
 
 export function toListingDto(row: ListingRow): ListingDto {
@@ -79,6 +89,7 @@ export function toListingDto(row: ListingRow): ListingDto {
     pickupLocationName: c.pickupPointName,
     pickupStartMs: c.pickupStartMs,
     pickupEndMs: c.pickupEndMs,
+    schedule: c.schedule ?? null,
     isPublished: c.isPublished,
     updatedAtMs: c.updatedAtMs,
     blockers: listingBlockers(row),
