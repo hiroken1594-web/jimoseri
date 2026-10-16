@@ -20,14 +20,14 @@ function visible(row: {
   return (
     row.isPublished &&
     !row.adminSuspended &&
-    !row.isDemo &&
+    // デモの出品（デモモードで保存したもの）も、デモの生産者・拠点の組み合わせなら表示する
+    row.isDemo === row.producer.isDemo &&
+    row.isDemo === row.pickupLocation.isDemo &&
     Number(row.quantity) > 0 &&
     row.pickupEnd.getTime() > Date.now() &&
     row.producer.approvalStatus === 'APPROVED' &&
-    !row.producer.isDemo &&
     !row.producer.user.suspended &&
-    row.pickupLocation.status === 'APPROVED' &&
-    !row.pickupLocation.isDemo
+    row.pickupLocation.status === 'APPROVED'
   )
 }
 
@@ -49,6 +49,7 @@ export const GET = handle(async (request) => {
       itemName: l.item.name,
       producerName: l.producer.farmName,
       available: ok,
+      isDemo: l.isDemo,
       locationName: ok ? l.pickupLocation.name : null,
       listing: ok
         ? {
@@ -69,6 +70,7 @@ export const GET = handle(async (request) => {
             producerName: l.producer.farmName,
             updatedAtMs: l.updatedAt.getTime(),
             isFavorite: true,
+            isDemo: l.isDemo,
           }
         : null,
     }

@@ -175,6 +175,9 @@ model Restaurant {
   city        String?
   town        String?
   addressLine String?
+  // お店の位置（地図検索の中心の初期値）。郵便番号・住所から候補を出し、本人が地図で確かめて保存する。非公開。
+  latitude    Float?
+  longitude   Float?
   demands     Demand[]
   favorites   Favorite[]
 }
@@ -299,6 +302,8 @@ model Demand {
   allowIrregular     Boolean
   // 複数の場所での受け取りを許可するか（初期値オフ）
   allowMultiLocation Boolean    @default(false)
+  // デモモード（デモデータだけで計算した仕入れ希望）
+  demoMode           Boolean    @default(false)
   createdAt          DateTime   @default(now())
 
   @@index([restaurantId, createdAt])

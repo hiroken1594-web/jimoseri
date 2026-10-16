@@ -1,14 +1,15 @@
-import { ClipboardList } from 'lucide-react'
+import { ClipboardList, Lightbulb } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import type { AllocationLine, ExclusionReason, PointResult } from '../../shared/allocate.js'
 import type { PlanResponse } from '../../shared/dto.js'
+import type { Relaxation } from '../../shared/relax.js'
 import { buildCopyText, buildMultiCopyText, describeStockChanges } from '../../shared/format.js'
 import { EXCLUSION_LABEL, formatQtyUnit, formatYen, IRREGULAR_LABEL, UNIT_LABEL } from '../../shared/labels.js'
 import { DAY_MS, formatJstDate, formatJstDateTime, formatWindow, jstToMs } from '../../shared/time.js'
 import { api, errorMessage } from '../api.js'
 import { Loading, Notice, PageTitle } from '../components/ui.js'
-import { loadConfirmedDemand, saveDraft } from '../lib/forms.js'
+import { loadConfirmedDemand, saveConfirmedDemand, saveDraft } from '../lib/forms.js'
 
 const CHECK_INTERVAL_MS = 20_000
 const STALE_UPDATE_MS = 2 * DAY_MS
@@ -30,7 +31,7 @@ const STATUS_LABEL: Record<PointResult['status'], string> = {
 export function RestaurantPlan() {
   const navigate = useNavigate()
   const location = useLocation()
-  const [demand] = useState(() => loadConfirmedDemand())
+  const [demand, setDemand] = useState(() => loadConfirmedDemand())
   const [plan, setPlan] = useState<PlanResponse | null>(null)
   const [changes, setChanges] = useState<string[] | null>(null)
   const [loading, setLoading] = useState(true)
@@ -50,7 +51,9 @@ export function RestaurantPlan() {
       try {
         const next = await api<PlanResponse>('/api/plan', { body: { ...demand, save } })
         const previous = planRef.current
-        setChanges(previous ? describeStockChanges(previous.result.snapshot, next.result.snapshot) : null)
+        // 条件を変えて計算し直したときは、在庫の差分ではないので比べない
+        const sameDemand = previous && JSON.stringify(previous.demand) === JSON.stringify(next.demand)
+        setChanges(previous && sameDemand ? describeStockChanges(previous.result.snapshot, next.result.snapshot) : null)
         planRef.current = next
         setPlan(next)
         setStale(false)
@@ -70,7 +73,7 @@ export function RestaurantPlan() {
     try {
       const result = await api<{ fresh: boolean }>('/api/plan', {
         method: 'PUT',
-        body: { itemId: current.demand.itemId, fingerprint: current.fingerprint },
+        body: { itemId: current.demand.itemId, fingerprint: current.fingerprint, demoMode: current.demand.demoMode },
       })
       if (!result.fresh) {
         setStale(true)
@@ -81,6 +84,22 @@ export function RestaurantPlan() {
       return null
     }
   }, [])
+
+  // 「条件を広げた場合の参考」を選んだときだけ、その条件で計算し直す（元の条件は「条件を変更」で戻せる）
+  const lastDemand = useRef(JSON.stringify(demand))
+  useEffect(() => {
+    const key = JSON.stringify(demand)
+    if (key === lastDemand.current) return
+    lastDemand.current = key
+    void compute(false)
+  }, [compute, demand])
+  const applyRelaxation = (r: Relaxation) => {
+    if (!demand) return
+    const next = { ...demand, ...r.patch }
+    saveConfirmedDemand(next)
+    setDemand(next)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   useEffect(() => {
     if (started.current) return
@@ -323,6 +342,39 @@ export function RestaurantPlan() {
         </p>
       </section>
 
+      {plan.demand.demoMode && (
+        <p className="demo-banner" role="status">
+          デモデータ（架空の農家・出品）だけで計算した仕入れ案です。実在の農家・出品ではありません。
+        </p>
+      )}
+
+      <section className="card" aria-labelledby="plan-summary-title">
+        <h3 className="card-title" id="plan-summary-title">
+          仕入れ案のまとめ
+        </h3>
+        <dl className="plan-summary">
+          <dt>希望数量</dt>
+          <dd>
+            {d.itemName} {qty(result.demandMilli)}
+          </dd>
+          <dt>提案できる数量</dt>
+          <dd>{qty(best?.plan.totalMilli ?? 0)}</dd>
+          <dt>不足数量</dt>
+          <dd>{qty(Math.max(0, result.demandMilli - (best?.plan.totalMilli ?? 0)))}</dd>
+          <dt>内訳</dt>
+          <dd>{best && best.plan.lines.length > 0 ? best.plan.lines.map((l) => `${l.producerName}：${qty(l.quantityMilli)}`).join('／') : 'なし'}</dd>
+          <dt>受渡場所</dt>
+          <dd>{best ? `${best.pickupPointName}（${formatWindow(best.plan.windowStartMs, best.plan.windowEndMs)}）` : 'なし'}</dd>
+          <dt>ステータス</dt>
+          <dd>{best ? `${STATUS_LABEL[best.status]}・未確保（注文ではありません）` : '案なし'}</dd>
+        </dl>
+        {best && best.plan.totalMilli < result.demandMilli && (
+          <p className="hero-sub">
+            <strong>あと{qty(result.demandMilli - best.plan.totalMilli)}不足しています。</strong>
+          </p>
+        )}
+      </section>
+
       {best?.windowConflict && (
         <Notice kind="warn">
           <p>数量はありますが、同じ日時・場所で受け取れる組み合わせがありません。希望日・日時の変更をご検討ください。</p>
@@ -404,6 +456,34 @@ export function RestaurantPlan() {
           <button className="btn btn-block" onClick={() => copyPlan('multi')} disabled={stale || loading}>
             この参考案をコピー
           </button>
+        </section>
+      )}
+
+      {plan.relaxations.length > 0 && (
+        <section aria-labelledby="relax-title">
+          <h3 className="section-title" id="relax-title">
+            <Lightbulb size={20} aria-hidden="true" style={{ verticalAlign: '-4px', marginRight: 6 }} />
+            条件を広げた場合の参考
+          </h3>
+          <p className="footnote">上の仕入れ案とは別の参考です。選んだときだけ、その条件で計算し直します（勝手に条件は変えません）。</p>
+          <div className="cards">
+            {plan.relaxations.map((r) => (
+              <article className="card relax-card" key={r.kind}>
+                <h4 className="card-title">{r.label}</h4>
+                <p>{r.detail}</p>
+                {r.kind === 'MULTI' && (
+                  <p className="footnote">
+                    複数の場所を回って受け取る参考案になります。場所の間の移動時間は考慮しません。オンにすることに同意したうえで選んでください。
+                  </p>
+                )}
+                <div className="notice-actions">
+                  <button className="btn btn-small" onClick={() => applyRelaxation(r)} disabled={loading}>
+                    {r.kind === 'MULTI' ? '同意して、この条件で計算し直す' : 'この条件で計算し直す'}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
         </section>
       )}
 

@@ -15,14 +15,14 @@ type ListingRow = Prisma.ListingGetPayload<{ include: typeof listingInclude }>
  * 飲食店の仕入れ案に使ってよい出品の条件（03_spec_addendum.md 7章）。
  * 承認済みの生産者・確認済みの受渡場所・運営者に停止されていない出品だけ。
  */
-export function planEligibleWhere(itemId: string): Prisma.ListingWhereInput {
+export function planEligibleWhere(itemId: string, demo = false): Prisma.ListingWhereInput {
   return {
     itemId,
     adminSuspended: false,
-    // デモデータ（お試し用）は、実際の飲食店の仕入れ案に混ぜない
-    isDemo: false,
-    producer: { approvalStatus: 'APPROVED', isDemo: false, user: { suspended: false } },
-    pickupLocation: { status: 'APPROVED', isDemo: false },
+    // デモデータ（お試し用）と実際のデータは混ぜない。デモモードのときはデモデータだけ、通常は実際のデータだけを使う。
+    isDemo: demo,
+    producer: { approvalStatus: 'APPROVED', isDemo: demo, user: { suspended: false } },
+    pickupLocation: { status: 'APPROVED', isDemo: demo },
   }
 }
 

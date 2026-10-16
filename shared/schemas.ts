@@ -139,6 +139,8 @@ export const marketSearchSchema = z.object({
   minQuantity: z.number().positive().max(100_000).nullable().optional(),
   irregular: z.enum(['any', 'exclude', 'only']).optional(),
   municipality: z.string().trim().max(20).nullable().optional(),
+  // デモモード（お試し）：true のときはデモデータだけを検索する。通常は実際のデータだけ。
+  demo: z.boolean().optional(),
 })
 export type MarketSearchInput = z.infer<typeof marketSearchSchema>
 
@@ -214,6 +216,8 @@ export const demandSchema = z
     allowIrregular: z.boolean(),
     // 複数の場所での受け取りを許可するか（初期値オフ）
     allowMultiLocation: z.boolean(),
+    // デモモード（お試し）：デモデータだけで仕入れ案を作る
+    demoMode: z.boolean().optional(),
     rawText: z.string().max(MAX_TEXT_LENGTH).nullable(),
     // 再計算のときは希望条件を重複して保存しない
     save: z.boolean().optional(),
@@ -227,6 +231,7 @@ export const demandSchema = z
 export const planCheckSchema = z.object({
   itemId: id,
   fingerprint: z.string().min(1).max(100),
+  demoMode: z.boolean().optional(),
 })
 
 export const extractSchema = z.object({

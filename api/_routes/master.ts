@@ -13,7 +13,7 @@ export const GET = handle(async (request) => {
   const actor = await getActor(request).catch(() => null)
   const producerId = actor?.producerId ?? null
 
-  const [items, approved, mine] = await Promise.all([
+  const [items, approved, mine, demoPlaces] = await Promise.all([
     prisma.item.findMany({ orderBy: { sortOrder: 'asc' } }),
     // デモデータの場所は、それを登録したデモ用の生産者にだけ見せる
     prisma.pickupLocation.findMany({
@@ -24,6 +24,13 @@ export const GET = handle(async (request) => {
     producerId
       ? prisma.pickupLocation.findMany({ where: { createdById: producerId, status: { not: 'APPROVED' } }, orderBy: { createdAt: 'desc' } })
       : Promise.resolve([]),
+    // デモモード（お試し）の受取エリアの選択肢
+    prisma.pickupLocation.findMany({
+      where: { status: 'APPROVED', isDemo: true },
+      select: { municipality: true },
+      distinct: ['municipality'],
+      orderBy: { municipality: 'asc' },
+    }),
   ])
 
   const data: MasterData = {
@@ -32,6 +39,7 @@ export const GET = handle(async (request) => {
       ? [...approved, ...mine].map((l) => toLocationDto(l, producerId))
       : [],
     municipalities: [...new Set(approved.filter((l) => !l.isDemo).map((l) => l.municipality))],
+    demoMunicipalities: demoPlaces.map((l) => l.municipality),
     aiEnabled: isAiConfigured(),
     signupMode: signupMode(),
     operator: operatorInfo(),

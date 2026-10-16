@@ -5,7 +5,9 @@ import type { MarketListing, MarketLocation } from '../../shared/dto.js'
 import { DEFAULT_CENTER, formatDistance, RADIUS_OPTIONS } from '../../shared/geo.js'
 import { formatQtyUnit, formatYen, IRREGULAR_LABEL, UNIT_LABEL } from '../../shared/labels.js'
 import { formatWindow } from '../../shared/time.js'
+import { DemoModeToggle } from '../components/DemoModeToggle.js'
 import { MapView } from '../components/MapView.js'
+import { SearchDiagnostics } from '../components/SearchDiagnostics.js'
 import { CenterAndRadius, FilterFields } from '../components/SearchControls.js'
 import { EmptyState, itemEmoji, Loading, Notice, PageTitle } from '../components/ui.js'
 import { loadSearch, saveSearch, type SearchState } from '../lib/search.js'
@@ -22,6 +24,7 @@ function ListingRow({ listing }: { listing: MarketListing }) {
         <span className="listing-row-name">
           {listing.itemName}
           {listing.variety && `（${listing.variety}）`}
+          {listing.isDemo && <span className="chip chip-demo">デモ</span>}
         </span>
         <span className="listing-row-sub block">
           {listing.producerName}・在庫 {formatQtyUnit(listing.quantityMilli, listing.unit)}
@@ -108,6 +111,7 @@ export function RestaurantMap() {
         }}
       />
       <FilterFields state={state} onChange={update} />
+      <DemoModeToggle />
 
       <div className="segmented" role="group" aria-label="表示の切り替え">
         <button type="button" aria-pressed={view === 'map'} onClick={() => setView('map')}>
@@ -217,6 +221,7 @@ export function RestaurantMap() {
               ? `範囲の外に、受渡場所が${data.outsideCount}か所あります。検索する範囲を広げてみてください。`
               : '絞り込みの条件を減らすか、別の場所を中心にしてみてください。地図に表示されるのは、生産者が地図への公開を許可し、運営者が確認した受渡場所だけです。'}
           </p>
+          <SearchDiagnostics diagnostics={data.diagnostics} demo={data.demo} />
         </EmptyState>
       )}
 

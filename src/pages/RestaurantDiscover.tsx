@@ -5,6 +5,8 @@ import type { MarketListing } from '../../shared/dto.js'
 import { formatDistance } from '../../shared/geo.js'
 import { formatQtyUnit, formatYen, IRREGULAR_LABEL, UNIT_LABEL } from '../../shared/labels.js'
 import { formatWindow } from '../../shared/time.js'
+import { DemoModeToggle } from '../components/DemoModeToggle.js'
+import { SearchDiagnostics } from '../components/SearchDiagnostics.js'
 import { CenterAndRadius, FilterFields } from '../components/SearchControls.js'
 import { EmptyState, itemEmoji, Loading, Notice, PageTitle } from '../components/ui.js'
 import { loadSearch, saveSearch, type SearchState } from '../lib/search.js'
@@ -18,6 +20,16 @@ interface Card extends MarketListing {
 
 const SKIP_KEY = 'jimoseri.skipped.v1'
 const THRESHOLD = 110
+const LEAVE_MS = 280
+
+const reducedMotion = () => {
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  } catch {
+    return false
+  }
+}
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 function loadSkipped(): Set<string> {
   try {
@@ -48,6 +60,8 @@ export function RestaurantDiscover() {
   const [error, setError] = useState<string | null>(null)
   const [dx, setDx] = useState(0)
   const [dragging, setDragging] = useState(false)
+  /** いま画面の外へ出ていく途中のカード（その間は次の操作を受け付けない） */
+  const [leaving, setLeaving] = useState<string | null>(null)
   const start = useRef<number | null>(null)
   const cardRef = useRef<HTMLElement>(null)
   const { data, loading, error: searchError, reload } = useMarketSearch(state)
@@ -61,7 +75,7 @@ export function RestaurantDiscover() {
     () =>
       (data?.locations ?? [])
         .flatMap((loc) => loc.listings.map((l) => ({ ...l, locationName: loc.name, municipality: loc.municipality, distanceKm: loc.distanceKm })))
-        .filter((c) => !c.isFavorite && !skipped.has(c.id) && !saved.has(c.id))
+        .filter((c, i, all) => !c.isFavorite && !skipped.has(c.id) && !saved.has(c.id) && all.findIndex((x) => x.id === c.id) === i)
         .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0)),
     [data, skipped, saved],
   )
@@ -70,30 +84,47 @@ export function RestaurantDiscover() {
 
   useEffect(() => {
     setDx(0)
+    // 次のカードにキーボードの位置を移す（カードを操作していたときだけ）
+    if (card && document.activeElement?.classList.contains('swipe-card')) cardRef.current?.focus()
   }, [card?.id])
 
+  // カードを画面の外へ動かしてから、次のカードに進む（動きを減らす設定のときは、すぐ進む）
+  const leave = async (dir: 1 | -1) => {
+    if (!card || leaving) return null
+    setLeaving(card.id)
+    setDx(dir * 700)
+    if (!reducedMotion()) await wait(LEAVE_MS)
+    return card
+  }
+
   const like = async () => {
-    if (!card) return
+    if (!card || leaving) return
     setError(null)
+    const target = card
     try {
-      await setFavorite(card.id, true)
-      setSaved((s) => new Set(s).add(card.id))
-      setAnnounce(`「気になる」に保存しました：${card.itemName}（${card.producerName}）`)
+      await Promise.all([setFavorite(target.id, true), leave(1)])
+      setSaved((s) => new Set(s).add(target.id))
+      setAnnounce(`「気になる」に保存しました：${target.itemName}（${target.producerName}）`)
     } catch (e) {
-      setDx(0)
       setError(`保存できませんでした。${e instanceof Error ? e.message : ''}`)
+    } finally {
+      setDx(0)
+      setLeaving(null)
     }
   }
-  const skip = () => {
-    if (!card) return
-    const next = new Set(skipped).add(card.id)
+  const skip = async () => {
+    const target = await leave(-1)
+    if (!target) return
+    const next = new Set(skipped).add(target.id)
     setSkipped(next)
     saveSkipped(next)
-    setAnnounce(`スキップしました：${card.itemName}`)
+    setAnnounce(`スキップしました：${target.itemName}`)
+    setDx(0)
+    setLeaving(null)
   }
 
   const onPointerDown = (e: PointerEvent<HTMLElement>) => {
-    if ((e.target as HTMLElement).closest('a,button')) return
+    if (leaving || (e.target as HTMLElement).closest('a,button')) return
     start.current = e.clientX
     setDragging(true)
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -105,13 +136,9 @@ export function RestaurantDiscover() {
     if (start.current === null) return
     start.current = null
     setDragging(false)
-    if (dx > THRESHOLD) {
-      setDx(600)
-      void like()
-    } else if (dx < -THRESHOLD) {
-      setDx(-600)
-      skip()
-    } else setDx(0)
+    if (dx > THRESHOLD) void like()
+    else if (dx < -THRESHOLD) void skip()
+    else setDx(0)
   }
   const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
     if (e.key === 'ArrowRight') {
@@ -119,7 +146,7 @@ export function RestaurantDiscover() {
       void like()
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault()
-      skip()
+      void skip()
     }
   }
 
@@ -140,6 +167,14 @@ export function RestaurantDiscover() {
         <p className="map-note">「地図から指定」は地図の画面で使えます。</p>
         <FilterFields state={state} onChange={update} />
       </details>
+      <DemoModeToggle compact />
+
+      <div className="swipe-toolbar">
+        <Link className="btn btn-small" to="/restaurant/favorites">
+          <Heart aria-hidden="true" />
+          気になるを見る{saved.size > 0 && `（このページで${saved.size}件保存）`}
+        </Link>
+      </div>
 
       <p className="visually-hidden" aria-live="polite">
         {announce}
@@ -157,32 +192,45 @@ export function RestaurantDiscover() {
       )}
       {loading && !data && <Loading label="農産物を探しています…" />}
 
-      {data && !card && (
+      {data && !card && skipped.size + saved.size > 0 && (
+        <div className="swipe-done" role="status">
+          <p className="swipe-done-illust" aria-hidden="true">
+            🎉
+          </p>
+          <h2>すべての農産物をチェックしました！</h2>
+          <p>気になるに保存した農産物を確認してみましょう。</p>
+          <Link className="btn btn-primary btn-large btn-block" to="/restaurant/favorites">
+            <Heart aria-hidden="true" />
+            気になるを見る
+          </Link>
+          {skipped.size > 0 && (
+            <button
+              className="btn"
+              onClick={() => {
+                setSkipped(new Set())
+                saveSkipped(new Set())
+              }}
+            >
+              <RotateCcw aria-hidden="true" />
+              スキップしたものをもう一度見る
+            </button>
+          )}
+        </div>
+      )}
+
+      {data && !card && skipped.size + saved.size === 0 && (
         <EmptyState
           illust="🧺"
-          title={skipped.size + saved.size > 0 ? 'この条件の農産物は、すべて見終わりました' : '条件に合う農産物がありません'}
+          title="条件に合う農産物がありません"
           action={
-            <div className="actions">
-              {skipped.size > 0 && (
-                <button
-                  className="btn"
-                  onClick={() => {
-                    setSkipped(new Set())
-                    saveSkipped(new Set())
-                  }}
-                >
-                  <RotateCcw aria-hidden="true" />
-                  スキップしたものをもう一度見る
-                </button>
-              )}
-              <Link className="btn btn-primary" to="/restaurant/favorites">
-                <Heart aria-hidden="true" />
-                気になる一覧を見る
-              </Link>
-            </div>
+            <Link className="btn" to="/restaurant/favorites">
+              <Heart aria-hidden="true" />
+              気になるを見る
+            </Link>
           }
         >
           <p>探す範囲を広げるか、絞り込みの条件を減らしてみてください。表示されるのは、地図への公開を許可された受渡場所の出品だけです。</p>
+          <SearchDiagnostics diagnostics={data.diagnostics} demo={data.demo} />
         </EmptyState>
       )}
 
@@ -197,7 +245,7 @@ export function RestaurantDiscover() {
             <article
               ref={cardRef}
               key={card.id}
-              className={dragging ? 'swipe-card is-dragging' : 'swipe-card'}
+              className={['swipe-card', dragging && 'is-dragging', leaving === card.id && 'is-leaving'].filter(Boolean).join(' ')}
               style={{ transform: `translateX(${dx}px) rotate(${dx / 20}deg)` }}
               tabIndex={0}
               aria-roledescription="スワイプできるカード"
@@ -220,6 +268,7 @@ export function RestaurantDiscover() {
               <h2 className="card-title" style={{ fontSize: '1.35rem' }}>
                 {card.itemName}
                 {card.variety && <small>（{card.variety}）</small>}
+                {card.isDemo && <span className="chip chip-demo">デモ</span>}
               </h2>
               <p className="price" style={{ fontSize: '1.4rem' }}>
                 {formatYen(card.unitPriceYen)}
@@ -243,14 +292,14 @@ export function RestaurantDiscover() {
             </article>
           </div>
           <div className="swipe-actions">
-            <button className="btn btn-large btn-quiet" onClick={skip} aria-label={`スキップ：${card.itemName}`}>
+            <button className="btn btn-large btn-quiet" onClick={() => void skip()} disabled={!!leaving} aria-label={`スキップ：${card.itemName}`}>
               <X aria-hidden="true" />
               スキップ
             </button>
             <Link className="btn round-btn" to={`/restaurant/listing/${card.id}`} aria-label={`${card.itemName}の詳細を見る`}>
               <Info aria-hidden="true" />
             </Link>
-            <button className="btn btn-large btn-primary" onClick={() => void like()} aria-label={`気になる：${card.itemName}`}>
+            <button className="btn btn-large btn-primary" onClick={() => void like()} disabled={!!leaving} aria-label={`気になる：${card.itemName}`}>
               <Heart aria-hidden="true" />
               気になる
             </button>

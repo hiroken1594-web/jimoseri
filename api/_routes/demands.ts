@@ -27,6 +27,7 @@ export const GET = handle(async (request) => {
       budgetMaxYen: d.budgetMaxYen,
       allowIrregular: d.allowIrregular,
       allowMultiLocation: d.allowMultiLocation,
+      demoMode: d.demoMode,
       rawText: d.rawText,
     },
   }))

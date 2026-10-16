@@ -2,6 +2,7 @@ import { Crosshair, LocateFixed, MapPinned, Search, SlidersHorizontal } from 'lu
 import { useState, type FormEvent } from 'react'
 import { RADIUS_OPTIONS, type LatLng, type PlaceResult } from '../../shared/geo.js'
 import { api, errorMessage } from '../api.js'
+import { useDemoMode } from '../lib/demoMode.js'
 import type { SearchState } from '../lib/search.js'
 import { useSession } from '../session.js'
 import { Field, Notice } from './ui.js'
@@ -148,6 +149,7 @@ export function CenterAndRadius({
 /** 品目・価格・数量・規格外・エリアの絞り込み */
 export function FilterFields({ state, onChange }: { state: SearchState; onChange: (next: SearchState) => void }) {
   const { master } = useSession()
+  const [demo] = useDemoMode()
   const set = <K extends keyof SearchState>(key: K, value: SearchState[K]) => onChange({ ...state, [key]: value })
   const activeCount = [state.itemId, state.maxPrice, state.minQty, state.irregular !== 'any' ? 'x' : '', state.municipality].filter(Boolean).length
   return (
@@ -185,7 +187,7 @@ export function FilterFields({ state, onChange }: { state: SearchState; onChange
         <Field label="受取エリア（市区町村）">
           <select className="input" value={state.municipality} onChange={(e) => set('municipality', e.target.value)}>
             <option value="">指定なし</option>
-            {master.municipalities.map((m) => (
+            {(demo ? master.demoMunicipalities : master.municipalities).map((m) => (
               <option key={m} value={m}>
                 {m}
               </option>

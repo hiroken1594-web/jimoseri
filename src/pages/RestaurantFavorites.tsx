@@ -6,6 +6,7 @@ import { formatQtyUnit, formatYen, IRREGULAR_LABEL, UNIT_LABEL } from '../../sha
 import { formatJstDateTime, formatWindow } from '../../shared/time.js'
 import { api, errorMessage } from '../api.js'
 import { EmptyState, itemEmoji, Loading, Notice, PageTitle } from '../components/ui.js'
+import { setDemoMode } from '../lib/demoMode.js'
 import { emptyDemandForm, saveDraft } from '../lib/forms.js'
 import { setFavorite } from '../lib/useMarket.js'
 
@@ -43,6 +44,7 @@ export function RestaurantFavorites() {
 
   const startPlan = (f: FavoriteItem) => {
     if (!f.listing) return
+    if (f.isDemo) setDemoMode(true)
     saveDraft({ text: '', form: { ...emptyDemandForm(), itemId: f.listing.itemId, unit: f.listing.unit }, regionText: null, notes: [], source: 'MANUAL' })
     navigate('/restaurant/confirm', { state: { aiMessage: `${f.itemName}の条件を入れました。数量と希望日を入力してください。`, title: 'この品目で仕入れ案を作る' } })
   }
@@ -87,6 +89,7 @@ export function RestaurantFavorites() {
                     {f.listing?.variety && <small>（{f.listing.variety}）</small>}
                   </span>
                 </h3>
+                {f.isDemo && <span className="chip chip-demo">デモ</span>}
                 {!f.available && <span className="chip chip-off">現在は掲載されていません</span>}
               </header>
               <p className="muted">
@@ -112,7 +115,7 @@ export function RestaurantFavorites() {
               <div className="card-actions">
                 {f.available && (
                   <>
-                    <Link className="btn" to={`/restaurant/listing/${f.listingId}`}>
+                    <Link className="btn" to={`/restaurant/listing/${f.listingId}${f.isDemo ? '?demo=1' : ''}`}>
                       詳細
                     </Link>
                     <button className="btn" onClick={() => startPlan(f)}>

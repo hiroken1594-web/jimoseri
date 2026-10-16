@@ -15,10 +15,13 @@ import {
   type Draft,
   type FormErrors,
 } from '../lib/forms.js'
+import { DemoModeToggle } from '../components/DemoModeToggle.js'
+import { useDemoMode } from '../lib/demoMode.js'
 import { useSession } from '../session.js'
 
 export function RestaurantConfirm() {
   const { master } = useSession()
+  const [demo] = useDemoMode()
   const navigate = useNavigate()
   const location = useLocation()
   const { aiMessage, title: noticeTitle } = (location.state as { aiMessage?: string; title?: string } | null) ?? {}
@@ -45,7 +48,7 @@ export function RestaurantConfirm() {
       requestAnimationFrame(() => document.querySelector('.field-invalid')?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
       return
     }
-    saveConfirmedDemand(result.payload)
+    saveConfirmedDemand({ ...result.payload, demoMode: demo })
     navigate('/restaurant/plan', { state: { fresh: true } })
   }
 
@@ -154,7 +157,7 @@ export function RestaurantConfirm() {
           <select className="input" value={form.municipality} onChange={(e) => update('municipality', e.target.value)}>
             <option value="">指定なし</option>
             {/* 履歴から開いた条件のエリアが、今は選べなくなっている場合も表示だけは残す */}
-            {[...new Set([...master.municipalities, ...(form.municipality ? [form.municipality] : [])])].map((m) => (
+            {[...new Set([...(demo ? master.demoMunicipalities : master.municipalities), ...(form.municipality ? [form.municipality] : [])])].map((m) => (
               <option key={m} value={m}>
                 {m}
               </option>
@@ -204,6 +207,8 @@ export function RestaurantConfirm() {
           </div>
         </Field>
       </div>
+
+      <DemoModeToggle compact />
 
       <div className="actions">
         <button className="btn btn-primary btn-large" onClick={submit}>

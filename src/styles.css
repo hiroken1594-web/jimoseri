@@ -2060,3 +2060,106 @@ select.input {
     outline: 3px solid CanvasText;
   }
 }
+
+/* デモモード（お試し） */
+.demo-toggle {
+  border: 2px dashed var(--line-strong);
+  border-radius: var(--radius);
+  padding: 4px 14px;
+  background: var(--white);
+}
+
+.demo-toggle.is-on {
+  border-color: var(--indigo-700);
+  background: var(--indigo-100);
+}
+
+.demo-banner {
+  margin: 0 0 10px;
+  font-size: 0.88rem;
+  color: var(--indigo-700);
+}
+
+/* 0件の理由（条件ごとの件数） */
+.funnel {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  font-size: 0.88rem;
+  width: 100%;
+}
+
+.funnel li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--cream);
+}
+
+.funnel li.is-zero {
+  background: var(--warn-100);
+  font-weight: 800;
+  color: var(--warn-800);
+}
+
+/* 仕入れ案の要約 */
+.plan-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  margin: 0;
+  font-size: 0.97rem;
+}
+
+.plan-summary dt {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.plan-summary dd {
+  font-weight: 800;
+}
+
+.relax-card {
+  border-left: 5px solid var(--info-700);
+}
+
+/* スワイプ：外へ出ていくカード・最後のメッセージ */
+.swipe-card.is-leaving {
+  transition: transform 0.28s ease-in, opacity 0.28s ease-in;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.swipe-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 8px 0;
+}
+
+.swipe-done {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  text-align: center;
+  padding: 28px 18px;
+  border-radius: var(--radius-lg);
+  background: var(--white);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 24px rgb(29 43 34 / 0.1);
+}
+
+.swipe-done h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.swipe-done-illust {
+  font-size: 3rem;
+  margin: 0;
+}

@@ -40,6 +40,7 @@ const demand: ConfirmedDemand = {
   budgetMaxYen: null,
   allowIrregular: true,
   allowMultiLocation: false,
+  demoMode: false,
 }
 
 const spec = {

@@ -1,4 +1,5 @@
 import { allocate, toMilli, type DemandSpec } from '../../shared/allocate.js'
+import { suggestRelaxations } from '../../shared/relax.js'
 import type { PlanResponse, PublicContact } from '../../shared/dto.js'
 import { demandSchema, planCheckSchema } from '../../shared/schemas.js'
 import { endOfJstDayMs, jstDateString, jstToMs } from '../../shared/time.js'
@@ -44,9 +45,12 @@ export const POST = handle(async (request) => {
   }
 
   // 承認済みの生産者・確認済みの場所の出品だけを読む
-  const rows = await prisma.listing.findMany({ where: planEligibleWhere(item.id), include: listingInclude })
+  const demoMode = body.demoMode ?? false
+  const rows = await prisma.listing.findMany({ where: planEligibleWhere(item.id, demoMode), include: listingInclude })
   const candidates = rows.map(toCandidate)
   const result = allocate(candidates, spec, nowMs)
+  // 希望量に届かないときだけ、条件を広げた場合の参考を計算する（元の案とは別に示す）
+  const relaxations = suggestRelaxations(candidates, spec, result, nowMs, { date: body.date })
 
   // 希望条件を履歴に保存する（再計算のときは保存しない）
   let demandId: string | null = null
@@ -65,6 +69,7 @@ export const POST = handle(async (request) => {
         budgetMaxYen: body.budgetMaxYen,
         allowIrregular: body.allowIrregular,
         allowMultiLocation: body.allowMultiLocation,
+        demoMode,
       },
     })
     demandId = created.id
@@ -122,8 +127,10 @@ export const POST = handle(async (request) => {
       budgetMaxYen: body.budgetMaxYen,
       allowIrregular: body.allowIrregular,
       allowMultiLocation: body.allowMultiLocation,
+      demoMode,
     },
     result,
+    relaxations,
     listingInfo,
     locations,
     contacts,
@@ -136,7 +143,7 @@ export const PUT = handle(async (request) => {
   await requireActor(request, 'RESTAURANT')
   const body = await readBody(request, planCheckSchema)
   const nowMs = Date.now()
-  const rows = await getPrisma().listing.findMany({ where: planEligibleWhere(body.itemId), include: listingInclude })
+  const rows = await getPrisma().listing.findMany({ where: planEligibleWhere(body.itemId, body.demoMode ?? false), include: listingInclude })
   const fresh = computeFingerprint(rows.map(toCandidate), nowMs) === body.fingerprint
   return json({ fresh, checkedAtMs: nowMs })
 })

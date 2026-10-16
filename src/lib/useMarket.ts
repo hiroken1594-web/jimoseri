@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MarketSearchResponse } from '../../shared/dto.js'
 import { api, errorMessage } from '../api.js'
+import { useDemoMode } from './demoMode.js'
 import { toSearchInput, type SearchState } from './search.js'
 
 /** 検索条件が変わるたびに（少し待ってから）地図・一覧用の検索を行う */
@@ -10,7 +11,8 @@ export function useMarketSearch(state: SearchState) {
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const seq = useRef(0)
-  const input = JSON.stringify(toSearchInput(state))
+  const [demo] = useDemoMode()
+  const input = JSON.stringify({ ...toSearchInput(state), demo })
 
   useEffect(() => {
     const my = ++seq.current

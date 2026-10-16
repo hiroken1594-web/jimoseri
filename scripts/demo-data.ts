@@ -83,10 +83,10 @@ const producer = await prisma.producer.create({
 
 const locations = {
   stand: await prisma.pickupLocation.create({
-    data: { name: 'デモ直売所（お試し用）', municipality: '能勢町', address: '架空の住所（お試し用）', note: 'デモデータ（お試し用）', status: 'APPROVED', isDemo: true, createdById: producer.id },
+    data: { name: 'デモ直売所（お試し用）', municipality: '能勢町', prefecture: '大阪府', address: '架空の住所（お試し用）', note: 'デモデータ（お試し用）', status: 'APPROVED', isDemo: true, createdById: producer.id, latitude: 34.9701, longitude: 135.4171, showOnMap: true },
   }),
   hub: await prisma.pickupLocation.create({
-    data: { name: 'デモ集荷場（お試し用）', municipality: '豊能町', address: '架空の住所（お試し用）', note: 'デモデータ（お試し用）', status: 'APPROVED', isDemo: true, createdById: producer.id },
+    data: { name: 'デモ集荷場（お試し用）', municipality: '豊能町', prefecture: '大阪府', address: '架空の住所（お試し用）', note: 'デモデータ（お試し用）', status: 'APPROVED', isDemo: true, createdById: producer.id, latitude: 34.9201, longitude: 135.4917, showOnMap: true },
   }),
   pending: await prisma.pickupLocation.create({
     data: { name: 'デモ軒先（お試し用・確認待ち）', municipality: '能勢町', address: '架空の住所（お試し用）', note: 'デモデータ（お試し用）', status: 'PENDING', isDemo: true, createdById: producer.id },
@@ -180,7 +180,173 @@ for (const { kind, count } of PLAN) {
 }
 await prisma.listing.createMany({ data: rows })
 
+
+// ---------- 生産者 499 件（demo_farm と合わせて 500 件）・共同受渡拠点 64 か所 ----------
+// すべて架空のデモデータ。名前に「デモ」「お試し用」を付け、ログインはできない（パスワードを持たない）アカウントにする。
+// 受渡拠点の位置は、市区町村のおおよその中心付近に置いた架空の地点で、実在の施設ではない。
+type Region = 'OSAKA_CITY' | 'HOKUSETSU' | 'SAKAI' | 'EAST' | 'TOKYO'
+const HUBS: { region: Region; pref: string; city: string; lat: number; lng: number }[] = [
+  ...(
+    [
+      ['大阪市北区', 34.7055, 135.4983], ['大阪市都島区', 34.7013, 135.5297], ['大阪市福島区', 34.6935, 135.4727], ['大阪市此花区', 34.6828, 135.4528],
+      ['大阪市中央区', 34.6813, 135.51], ['大阪市西区', 34.6769, 135.4862], ['大阪市港区', 34.6638, 135.4615], ['大阪市大正区', 34.6517, 135.4719],
+      ['大阪市天王寺区', 34.6588, 135.5193], ['大阪市浪速区', 34.6599, 135.4985], ['大阪市西淀川区', 34.711, 135.4566], ['大阪市淀川区', 34.733, 135.4836],
+      ['大阪市東淀川区', 34.7398, 135.5287], ['大阪市東成区', 34.6708, 135.5402], ['大阪市生野区', 34.6534, 135.5459], ['大阪市旭区', 34.7232, 135.5444],
+      ['大阪市城東区', 34.6974, 135.5436], ['大阪市鶴見区', 34.7044, 135.5735], ['大阪市阿倍野区', 34.6377, 135.5184], ['大阪市住之江区', 34.6097, 135.4826],
+      ['大阪市住吉区', 34.6037, 135.5156], ['大阪市東住吉区', 34.6215, 135.5326], ['大阪市西成区', 34.6346, 135.4934], ['大阪市平野区', 34.6209, 135.5603],
+    ] as const
+  ).map(([city, lat, lng]) => ({ region: 'OSAKA_CITY' as const, pref: '大阪府', city, lat, lng })),
+  ...(
+    [
+      ['豊中市', 34.7813, 135.4697], ['吹田市', 34.7594, 135.5169], ['茨木市', 34.8164, 135.5683], ['高槻市', 34.8463, 135.6176], ['箕面市', 34.827, 135.4705],
+      ['池田市', 34.8217, 135.4286], ['摂津市', 34.7774, 135.5622], ['島本町', 34.8836, 135.6631], ['能勢町', 34.9719, 135.4142], ['豊能町', 34.9187, 135.494],
+    ] as const
+  ).map(([city, lat, lng]) => ({ region: 'HOKUSETSU' as const, pref: '大阪府', city, lat, lng })),
+  ...(
+    [
+      ['堺市堺区', 34.5733, 135.4831], ['堺市北区', 34.585, 135.513], ['堺市中区', 34.5418, 135.5072], ['堺市東区', 34.541, 135.542], ['堺市西区', 34.5367, 135.4655],
+      ['堺市南区', 34.488, 135.491], ['堺市美原区', 34.542, 135.56], ['和泉市', 34.4834, 135.4236], ['高石市', 34.5203, 135.4423], ['大阪狭山市', 34.5036, 135.5557],
+      ['松原市', 34.5776, 135.5517], ['羽曳野市', 34.5579, 135.6062], ['富田林市', 34.4997, 135.5972],
+    ] as const
+  ).map(([city, lat, lng]) => ({ region: 'SAKAI' as const, pref: '大阪府', city, lat, lng })),
+  ...(
+    [
+      ['東大阪市', 34.6795, 135.6008], ['八尾市', 34.6269, 135.6008], ['守口市', 34.7377, 135.5641], ['門真市', 34.7393, 135.5871], ['寝屋川市', 34.7662, 135.6276],
+      ['枚方市', 34.8143, 135.651], ['交野市', 34.7877, 135.68],
+    ] as const
+  ).map(([city, lat, lng]) => ({ region: 'EAST' as const, pref: '大阪府', city, lat, lng })),
+  ...(
+    [
+      ['新宿区', 35.6938, 139.7034], ['渋谷区', 35.664, 139.6982], ['世田谷区', 35.6464, 139.6532], ['練馬区', 35.7356, 139.6517], ['杉並区', 35.6995, 139.6364],
+      ['大田区', 35.5613, 139.716], ['江戸川区', 35.7068, 139.8683], ['八王子市', 35.6664, 139.316], ['町田市', 35.5465, 139.4385], ['立川市', 35.6939, 139.4074],
+    ] as const
+  ).map(([city, lat, lng]) => ({ region: 'TOKYO' as const, pref: '東京都', city, lat, lng })),
+]
+const REGION_LABEL: Record<Region, string> = { OSAKA_CITY: '大阪市内', HOKUSETSU: '北摂', SAKAI: '堺・南河内', EAST: '東大阪・北河内', TOKYO: '東京' }
+const REGION_COUNTS: [Region, number][] = [['OSAKA_CITY', 150], ['HOKUSETSU', 140], ['SAKAI', 100], ['EAST', 60], ['TOKYO', 44]]
+const SLOTS: [string, string][] = [['09:00', '10:00'], ['10:00', '11:00'], ['14:00', '15:00']]
+// 検証用の組み合わせを置く拠点（ここにはランダムなトマトを置かない）
+const SCENARIO_CITY = '大阪市福島区'
+
+const hubRows = HUBS.map((h, i) => ({
+  id: `demo-hub-${String(i + 1).padStart(2, '0')}`,
+  name: `デモ共同受渡拠点（${h.city}）`,
+  municipality: h.city,
+  prefecture: h.pref,
+  address: '架空の住所（デモ）',
+  note: 'デモデータ（お試し用）。実在の施設ではありません。',
+  hours: '平日9〜15時（デモ）',
+  latitude: Math.round((h.lat + (rand() - 0.5) * 0.004) * 1e6) / 1e6,
+  longitude: Math.round((h.lng + (rand() - 0.5) * 0.004) * 1e6) / 1e6,
+  showOnMap: true,
+  status: 'APPROVED' as const,
+  isDemo: true,
+  createdById: producer.id,
+}))
+await prisma.pickupLocation.createMany({ data: hubRows })
+const hubsByRegion = new Map<Region, typeof hubRows>()
+HUBS.forEach((h, i) => hubsByRegion.set(h.region, [...(hubsByRegion.get(h.region) ?? []), hubRows[i]]))
+// 拠点ごとに受渡の時間帯を決める（同じ拠点・同じ日の出品は同じ時間帯になり、組み合わせられる）
+const slotOf = (hubIndex: number) => SLOTS[hubIndex % SLOTS.length]
+
+const userRows: { id: string; name: string; email: string; emailVerified: boolean; username: string; displayUsername: string; role: 'PRODUCER'; orgName: string; area: string; signupRole: string }[] = []
+const producerRows: { id: string; userId: string; farmName: string; area: string; approvalStatus: 'APPROVED'; isDemo: boolean; prefecture: string; city: string }[] = []
+const manyListings: typeof rows = []
+let serial = 0
+for (const [region, count] of REGION_COUNTS) {
+  const hubs = hubsByRegion.get(region)!
+  for (let i = 0; i < count; i++) {
+    serial++
+    const no = String(serial).padStart(3, '0')
+    const home = pick(hubs)
+    const farmName = `デモ${REGION_LABEL[region]}農園${no}（お試し用）`
+    userRows.push({ id: `demo-user-${no}`, name: farmName, email: `demo_p${no}@users.jimoseri.invalid`, emailVerified: true, username: `demo_p${no}`, displayUsername: `demo_p${no}`, role: 'PRODUCER', orgName: farmName, area: home.municipality, signupRole: 'PRODUCER' })
+    producerRows.push({ id: `demo-prod-${no}`, userId: `demo-user-${no}`, farmName, area: home.municipality, approvalStatus: 'APPROVED', isDemo: true, prefecture: home.prefecture, city: home.municipality })
+    const listingCount = 1 + Math.floor(rand() * 3)
+    for (let k = 0; k < listingCount; k++) {
+      // 6割は近くの拠点（自分の地域の拠点の先頭寄り）に集め、同じ拠点を複数の農家が使うようにする
+      const hub = rand() < 0.6 ? hubs[Math.floor(rand() * Math.min(4, hubs.length))] : pick(hubs)
+      const hubIndex = hubRows.indexOf(hub)
+      let c = CATALOG[Math.floor(rand() * CATALOG.length)]
+      // トマト・きゅうり・玉ねぎ・キャベツ・にんじんを多めにする
+      if (rand() < 0.45) {
+        const favorite = pick(['トマト', 'きゅうり', '玉ねぎ', 'キャベツ', 'にんじん'])
+        c = CATALOG.find((x) => x.item === favorite)!
+      }
+      if (hub.municipality === SCENARIO_CITY && c.item === 'トマト') c = CATALOG.find((x) => x.item === 'キャベツ')!
+      const day = addDaysJst(today, 1 + Math.floor(rand() * 7))
+      const [start, end] = slotOf(hubIndex)
+      const irregular = rand() < 0.2
+      const price = Math.round(between(c.price[0], c.price[1]) / 10) * 10
+      const createdAtMs = now - Math.ceil(between(1, 25)) * DAY_MS
+      manyListings.push({
+        producerId: `demo-prod-${no}`,
+        itemId: itemIds.get(c.item)!,
+        variety: pick(c.varieties),
+        grade: irregular ? ('IRREGULAR' as const) : ('REGULAR' as const),
+        irregularReason: irregular ? pick(['SHAPE', 'SHAPE', 'SIZE', 'SURPLUS'] as const) : null,
+        quantity: roundTo(between(c.qty[0], c.qty[1]), c.step),
+        unit: c.unit,
+        unitPriceTaxIncl: irregular ? Math.round((price * between(0.7, 0.9)) / 10) * 10 : price,
+        minQuantity: c.min,
+        stepQuantity: c.step,
+        pickupLocationId: hub.id,
+        pickupStart: new Date(jstToMs(day, start)),
+        pickupEnd: new Date(jstToMs(day, end)),
+        isPublished: rand() > 0.05,
+        adminSuspended: false,
+        isDemo: true,
+        createdAt: new Date(createdAtMs),
+        updatedAt: new Date(Math.min(now - 60_000, createdAtMs + Math.round(between(0, 3) * DAY_MS))),
+      })
+    }
+  }
+}
+
+// 検証用の組み合わせ（大阪市福島区）：明後日10〜11時に、トマトを 5kg・2kg・1kg の3農家が出品 → 10kg の希望に対して 8kg・2kg不足。
+// 近くの別拠点（大阪市北区）には同じ日時に 3kg、同じ拠点の翌日（明々後日）には1農家で 10kg を置き、「条件を広げた場合の参考」を確かめられるようにする。
+const scenarioHub = hubRows.find((h) => h.municipality === SCENARIO_CITY)!
+const kitaHub = hubRows.find((h) => h.municipality === '大阪市北区')!
+const scenario: [string, string, number, number, string, string][] = [
+  ['S1', 'デモ検証農園A（お試し用）', 5, 600, scenarioHub.id, addDaysJst(today, 2)],
+  ['S2', 'デモ検証農園B（お試し用）', 2, 550, scenarioHub.id, addDaysJst(today, 2)],
+  ['S3', 'デモ検証農園C（お試し用）', 1, 350, scenarioHub.id, addDaysJst(today, 2)],
+  ['S4', 'デモ検証農園D（お試し用）', 3, 580, kitaHub.id, addDaysJst(today, 2)],
+  ['S5', 'デモ検証農園E（お試し用）', 10, 560, scenarioHub.id, addDaysJst(today, 3)],
+]
+for (const [code, farmName, qty, price, hubId, day] of scenario) {
+  userRows.push({ id: `demo-user-${code}`, name: farmName, email: `demo_${code.toLowerCase()}@users.jimoseri.invalid`, emailVerified: true, username: `demo_${code.toLowerCase()}`, displayUsername: `demo_${code.toLowerCase()}`, role: 'PRODUCER', orgName: farmName, area: SCENARIO_CITY, signupRole: 'PRODUCER' })
+  producerRows.push({ id: `demo-prod-${code}`, userId: `demo-user-${code}`, farmName, area: SCENARIO_CITY, approvalStatus: 'APPROVED', isDemo: true, prefecture: '大阪府', city: SCENARIO_CITY })
+  manyListings.push({
+    producerId: `demo-prod-${code}`,
+    itemId: itemIds.get('トマト')!,
+    variety: '検証用',
+    grade: 'REGULAR',
+    irregularReason: null,
+    quantity: qty,
+    unit: 'KG',
+    unitPriceTaxIncl: price,
+    minQuantity: 1,
+    stepQuantity: 1,
+    pickupLocationId: hubId,
+    pickupStart: new Date(jstToMs(day, '10:00')),
+    pickupEnd: new Date(jstToMs(day, '11:00')),
+    isPublished: true,
+    adminSuspended: false,
+    isDemo: true,
+    createdAt: new Date(now - DAY_MS),
+    updatedAt: new Date(now - 60_000),
+  })
+}
+
+await prisma.user.createMany({ data: userRows })
+await prisma.producer.createMany({ data: producerRows })
+for (let i = 0; i < manyListings.length; i += 500) await prisma.listing.createMany({ data: manyListings.slice(i, i + 500) })
+
+const regionSummary = REGION_COUNTS.map(([r, n]) => `${REGION_LABEL[r]} ${n}`).join('・')
+console.log(`デモの生産者を追加しました：${userRows.length} 件（${regionSummary}・検証用 ${scenario.length}）、共同受渡拠点 ${hubRows.length} か所、出品 ${manyListings.length} 件`)
+
 const summary = PLAN.map((p) => `${{ active: '公開中', stopped: '公開停止', soldout: '数量0', expired: '受渡日を過ぎた', suspended: '運営者が停止', pending: '場所が確認待ち' }[p.kind]} ${p.count}`).join('・')
-console.log(`デモデータを登録しました：出品 ${rows.length} 件（${summary}）、受渡場所 3 件`)
+console.log(`デモ用アカウント demo_farm の出品 ${rows.length} 件（${summary}）、受渡場所 3 件`)
 console.log(`デモ用アカウント：ユーザー名「${DEMO_USERNAME}」。パスワードは ${PASSWORD_FILE} に保存しました（Git には含まれません）。`)
 await prisma.$disconnect()

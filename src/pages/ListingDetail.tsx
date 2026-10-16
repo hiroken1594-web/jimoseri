@@ -1,6 +1,6 @@
 import { ArrowLeft, ClipboardList, Heart, MapPin, Phone } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import type { ListingDetail as Detail } from '../../shared/dto.js'
 import { formatQtyUnit, formatYen, IRREGULAR_LABEL, UNIT_LABEL } from '../../shared/labels.js'
 import { formatJstDateTime, formatWindow } from '../../shared/time.js'
@@ -8,12 +8,16 @@ import { api, errorMessage } from '../api.js'
 import { MapView } from '../components/MapView.js'
 import { ReportButton } from '../components/ReportButton.js'
 import { EmptyState, itemEmoji, Loading, Notice } from '../components/ui.js'
+import { isDemoMode, setDemoMode } from '../lib/demoMode.js'
 import { emptyDemandForm, saveDraft } from '../lib/forms.js'
 import { setFavorite } from '../lib/useMarket.js'
 
 export function ListingDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  // デモデータの出品は、デモモードのとき（または「気になる」一覧などから明示されたとき）だけ開ける
+  const demo = isDemoMode() || params.get('demo') === '1'
   const [listing, setListing] = useState<Detail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -21,11 +25,11 @@ export function ListingDetail() {
 
   const load = useCallback(async () => {
     try {
-      setListing((await api<{ listing: Detail }>(`/api/market?id=${encodeURIComponent(id ?? '')}`)).listing)
+      setListing((await api<{ listing: Detail }>(`/api/market?id=${encodeURIComponent(id ?? '')}${demo ? '&demo=1' : ''}`)).listing)
     } catch (e) {
       setError(errorMessage(e))
     }
-  }, [id])
+  }, [id, demo])
 
   useEffect(() => {
     void load()
@@ -65,6 +69,8 @@ export function ListingDetail() {
 
   // この品目で仕入れ案を作る：品目と単位だけを入れた条件の入力画面へ（数量・日付は利用者が決める）
   const startPlan = () => {
+    // デモデータの出品から作る仕入れ案は、デモデータだけで計算する
+    if (listing.isDemo) setDemoMode(true)
     saveDraft({ text: '', form: { ...emptyDemandForm(), itemId: listing.itemId, unit: listing.unit, municipality: listing.location.municipality }, regionText: null, notes: [], source: 'MANUAL' })
     navigate('/restaurant/confirm', { state: { aiMessage: `${listing.itemName}・${listing.location.municipality}の条件を入れました。数量と希望日を入力してください。`, title: 'この品目で仕入れ案を作る' } })
   }
@@ -88,6 +94,7 @@ export function ListingDetail() {
         ) : (
           <span className="chip">通常品</span>
         )}
+        {listing.isDemo && <span className="chip chip-demo">デモデータ（架空）</span>}
         {listing.isFavorite && (
           <span className="chip chip-live">
             <Heart aria-hidden="true" />

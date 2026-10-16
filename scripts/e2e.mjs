@@ -387,6 +387,38 @@ check('デモ用アカウントで新しく登録した出品も、デモデー�
 check('他の生産者は、デモの場所を使って出品できない', (await farmC('/api/listings', { body: listingBody({ pickupLocationId: demoPlaces.find((l) => l.status === 'APPROVED' && l.name.includes('お試し用')).id }) })).status === 400)
 overview = (await admin('/api/admin')).data
 check('運営者の管理画面で、デモデータが区別できる', overview.producers.some((p) => p.isDemo) && overview.locations.some((l) => l.isDemo) && overview.listings.some((l) => l.isDemo))
+
+console.log('デモモード（お試し）・0件の理由・条件を広げた場合の参考')
+{
+  const OSAKA_ST = { lat: 34.7025, lng: 135.4959 }
+  const count = (res) => res.data.locations.reduce((n, l) => n + l.listings.length, 0)
+  const normal = await restaurant('/api/market', { body: { center: OSAKA_ST, radiusKm: 10 } })
+  check('通常の検索にはデモデータが混ざらない', normal.status === 200 && normal.data.demo === false && normal.data.locations.every((l) => !l.isDemo && l.listings.every((x) => !x.isDemo)))
+  const demo10 = await restaurant('/api/market', { body: { center: OSAKA_ST, radiusKm: 10, demo: true } })
+  check('デモモードでは、大阪駅から10km以内にデモデータの出品が見つかる', demo10.data.demo === true && count(demo10) > 100 && demo10.data.locations.every((l) => l.isDemo && l.listings.every((x) => x.isDemo) && l.distanceKm <= 10), `${count(demo10)}`)
+  const demoAll = await restaurant('/api/market', { body: { center: OSAKA_ST, radiusKm: null, demo: true } })
+  check('距離指定なしでは、さらに多く見つかる（東京も含む）', count(demoAll) > count(demo10) && demoAll.data.locations.some((l) => l.municipality.startsWith('東京都') || l.latitude > 35.5), `${count(demoAll)}`)
+  const none = await restaurant('/api/market', { body: { center: { lat: 33.59, lng: 130.4 }, radiusKm: 1 } })
+  const st = none.data.diagnostics?.stages ?? []
+  check('0件のときは、条件ごとの件数と0件になった条件を返す', none.data.locations.length === 0 && st.length >= 5 && st.at(-1).count === 0 && st[0].count > 0, JSON.stringify(none.data.diagnostics))
+  const tomatoDemand = { ...demand({ quantity: 10, date: DAY2, municipality: '大阪市福島区' }), demoMode: true }
+  const fp = (await restaurant('/api/plan', { body: tomatoDemand })).data
+  const lines = fp.result?.best?.plan.lines.map((l) => [l.producerName, l.quantityMilli]) ?? []
+  check('福島区トマト10kg：8kgを提案・2kg不足・内訳 5kg／2kg／1kg', fp.result?.best?.status === 'SHORTAGE' && fp.result.best.plan.totalMilli === 8000 && fp.result.best.shortageMilli === 2000 && JSON.stringify(lines.map((l) => l[1]).sort((a, b) => b - a)) === '[5000,2000,1000]', JSON.stringify(lines))
+  check('デモの仕入れ案には、デモデータの農家だけが入る', lines.every(([n]) => n.includes('お試し用')))
+  const kinds = fp.relaxations?.map((x) => x.kind) ?? []
+  check('条件を広げた参考：受取日の延長・エリア指定なしを、元の案とは別に返す', kinds.includes('DATE') && kinds.includes('AREA') && fp.relaxations.every((x) => x.achievableMilli > 8000), JSON.stringify(fp.relaxations))
+  const dateFix = fp.relaxations.find((x) => x.kind === 'DATE')
+  const fixed = (await restaurant('/api/plan', { body: { ...tomatoDemand, ...dateFix.patch } })).data
+  check('参考の条件で計算し直すと、希望量に届く', fixed.result.best.plan.totalMilli >= 10000, JSON.stringify(fixed.result.best?.plan.totalMilli))
+  const real = (await restaurant('/api/plan', { body: demand({ quantity: 10, date: DAY2, municipality: '大阪市福島区' }) })).data
+  check('通常の仕入れ案には、デモデータが使われない', !JSON.stringify(real.result).includes('お試し用'))
+  check('デモの案は、通常の確認ではデモとして照合される', (await restaurant('/api/plan', { method: 'PUT', body: { itemId: tomato.id, fingerprint: fp.fingerprint, demoMode: true } })).data.fresh === true)
+  const m = (await restaurant('/api/master')).data
+  check('デモモード用の受取エリアの選択肢がある（通常の選択肢には混ざらない）', m.demoMunicipalities.includes('大阪市福島区') && !m.municipalities.includes('大阪市福島区'))
+  const anyDemo = demo10.data.locations[0].listings[0]
+  check('デモの出品の詳細は、デモモード指定のときだけ開ける', (await restaurant(`/api/market?id=${anyDemo.id}`)).status === 404 && (await restaurant(`/api/market?id=${anyDemo.id}&demo=1`)).status === 200)
+}
 execSync('npx tsx scripts/demo-data.ts remove', { stdio: 'ignore' })
 const leftovers = await db.query('select (select count(*)::int from "Listing" where "isDemo") as l, (select count(*)::int from "PickupLocation" where "isDemo") as p, (select count(*)::int from "Producer" where "isDemo") as pr')
 check('デモデータを一括削除できる（出品・場所・アカウント）', leftovers.rows[0].l === 0 && leftovers.rows[0].p === 0 && leftovers.rows[0].pr === 0, JSON.stringify(leftovers.rows[0]))

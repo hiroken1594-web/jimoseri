@@ -2,6 +2,7 @@
 // 現在地もここに一時的に置くだけで、タブを閉じると消える。
 import { DEFAULT_RADIUS_KM, type LatLng } from '../../shared/geo.js'
 import type { MarketSearchInput } from '../../shared/schemas.js'
+import { isDemoMode } from './demoMode.js'
 
 export interface SearchState {
   center: LatLng | null
@@ -68,5 +69,6 @@ export function toSearchInput(state: SearchState): MarketSearchInput {
     minQuantity: toNumber(state.minQty),
     irregular: state.irregular,
     municipality: state.municipality || null,
+    demo: isDemoMode(),
   }
 }

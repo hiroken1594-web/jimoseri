@@ -1,5 +1,6 @@
 // API とブラウザの間でやり取りするデータの形。
 import type { AllocationResult, Grade, IrregularReason, TimeMode, Unit } from './allocate.js'
+import type { Relaxation } from './relax.js'
 import type { DemandInput } from './schemas.js'
 
 export type Role = 'RESTAURANT' | 'PRODUCER' | 'ADMIN'
@@ -79,6 +80,8 @@ export interface MarketListing {
   producerName: string
   updatedAtMs: number
   isFavorite: boolean
+  /** デモデータ（お試し用） */
+  isDemo: boolean
 }
 
 /** 地図・一覧に出す受渡拠点（地図への公開を許可され、運営者が確認したものだけ） */
@@ -93,7 +96,15 @@ export interface MarketLocation {
   longitude: number
   /** 検索の中心からの直線距離（km）。中心を指定しないときは null */
   distanceKm: number | null
+  isDemo: boolean
   listings: MarketListing[]
+}
+
+/** 0件のときの理由（条件を1つずつ足したときに何件残るか） */
+export interface MarketDiagnostics {
+  stages: { label: string; count: number }[]
+  /** 通常の検索で0件のとき、デモモードで見られる出品の数 */
+  demoAvailable: number
 }
 
 export interface MarketSearchResponse {
@@ -101,6 +112,10 @@ export interface MarketSearchResponse {
   /** 半径の外にあったため除外した拠点の数（「半径を広げる」提案に使う） */
   outsideCount: number
   searchedAtMs: number
+  /** デモモードで検索した結果か */
+  demo: boolean
+  /** 0件のときだけ入る */
+  diagnostics: MarketDiagnostics | null
 }
 
 /** 出品の詳細（飲食店向け） */
@@ -116,6 +131,8 @@ export interface MasterData {
   locations: LocationDto[]
   /** 飲食店が受取エリアとして選べる市区町村（確認済みの場所があるもの） */
   municipalities: string[]
+  /** デモモード（お試し）で使う受取エリア */
+  demoMunicipalities: string[]
   aiEnabled: boolean
   signupMode: SignupMode
   operator: { name: string; email: string } | null
@@ -167,6 +184,8 @@ export interface ConfirmedDemand {
   budgetMaxYen: number | null
   allowIrregular: boolean
   allowMultiLocation: boolean
+  /** デモデータだけで計算した案か */
+  demoMode: boolean
 }
 
 /** 本人が公開を許可した連絡先だけを含む */
@@ -184,6 +203,8 @@ export interface PlanResponse {
   demandId: string | null
   demand: ConfirmedDemand
   result: AllocationResult
+  /** 希望量に届かないとき、条件を広げた場合の参考（元の案とは別） */
+  relaxations: Relaxation[]
   /** 採用した出品ごとの受渡日時・最終更新日時 */
   listingInfo: Record<string, { pickupStartMs: number; pickupEndMs: number; updatedAtMs: number }>
   /** 案に含まれる受渡場所 */
@@ -268,6 +289,8 @@ export interface FavoriteItem {
   producerName: string
   /** 現在も掲載中か（公開停止・期限切れ・在庫0などのときは false） */
   available: boolean
+  /** デモデータ（お試し用）の出品か */
+  isDemo: boolean
   /** 掲載中のときだけ、最新の情報を入れる */
   listing: MarketListing | null
   locationName: string | null
