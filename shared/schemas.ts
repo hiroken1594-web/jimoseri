@@ -29,17 +29,6 @@ const usernameField = z
   .refine(isValidUsername, `ユーザー名は半角の英小文字・数字・_ で${USERNAME_MIN}〜${USERNAME_MAX}文字、英字で始めてください`)
 const passwordField = z.string().min(10, 'パスワードは10文字以上で入力してください').max(128, 'パスワードは128文字以内で入力してください')
 
-export const signupSchema = z.object({
-  username: usernameField,
-  password: passwordField,
-  role: z.enum(['RESTAURANT', 'PRODUCER'], { error: '利用者の種類（生産者・飲食店）を選択してください' }),
-  orgName: shortText('店舗名・農園名', 40),
-  area: shortText('地域', 40),
-  inviteCode: z.string().trim().max(100).optional(),
-  // 人には見えない入力欄（自動登録の検出用）
-  website: z.string().max(200).optional(),
-})
-
 // パスワードを忘れたとき：ユーザー名＋リカバリーコードで再設定する
 export const recoveryResetSchema = z.object({
   username: z.string().trim().toLowerCase().min(1, 'ユーザー名を入力してください').max(40),
@@ -75,12 +64,37 @@ export const addressSchema = z.object({
 })
 export type AddressInput = z.infer<typeof addressSchema>
 
+// 新規登録。郵便番号は必須（都道府県・市区町村・町域は自動入力の後も直せる。番地・建物名は任意）。
+// 住所は本人と運営者だけが見る。生産者の住所（自宅など）は公開しない。受渡場所は別に登録する。
+export const signupSchema = z.object({
+  username: usernameField,
+  password: passwordField,
+  role: z.enum(['RESTAURANT', 'PRODUCER'], { error: '利用者の種類（生産者・飲食店）を選択してください' }),
+  orgName: shortText('店舗名・屋号', 40),
+  // 地域（市区町村）。省略した場合は住所の市区町村を使う
+  area: shortText('地域', 40).optional(),
+  ...addressSchema.shape,
+  postalCode: z
+    .string({ error: '郵便番号を入力してください' })
+    .trim()
+    .regex(/^\d{3}-?\d{4}$/, '郵便番号は7桁の数字で入力してください'),
+  inviteCode: z.string().trim().max(100).optional(),
+  // 人には見えない入力欄（自動登録の検出用）
+  website: z.string().max(200).optional(),
+})
+
+
 // プロフィールの変更。役割やユーザー名はここでは変更できない。
 export const profileSchema = z
   .object({
     ...addressSchema.shape,
     orgName: shortText('店舗名・農園名', 40),
     area: shortText('地域', 40),
+    // 飲食店のみ。お店の位置（地図で探すときの中心の初期値）。本人が地図で確かめて保存する。null で削除。
+    storePosition: z
+      .object({ lat: z.number().min(20).max(46), lng: z.number().min(122).max(154) }, { error: '地図で位置を指定してください' })
+      .nullable()
+      .optional(),
     // 以下は生産者のみ。公開用の連絡先（任意）
     publicPhone: optionalText('電話番号', 20).optional(),
     showPhone: z.boolean().optional(),

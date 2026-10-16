@@ -1,4 +1,4 @@
-import { Crosshair, LocateFixed, MapPinned, Search, SlidersHorizontal } from 'lucide-react'
+import { Crosshair, LocateFixed, MapPinned, Search, SlidersHorizontal, Store } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { RADIUS_OPTIONS, type LatLng, type PlaceResult } from '../../shared/geo.js'
 import { api, errorMessage } from '../api.js'
@@ -42,6 +42,8 @@ export function CenterAndRadius({
   const [query, setQuery] = useState('')
   const [places, setPlaces] = useState<PlaceResult[] | null>(null)
   const [searching, setSearching] = useState(false)
+  const { user } = useSession()
+  const store = user?.storePosition ?? null
 
   const useCurrent = async () => {
     setLocating(true)
@@ -84,6 +86,12 @@ export function CenterAndRadius({
         検索の中心：<strong>{state.center ? state.centerLabel || '指定した地点' : '未指定（距離では絞り込みません）'}</strong>
       </p>
       <div className="actions">
+        {store && (
+          <button type="button" className="btn" onClick={() => onChange({ ...state, center: store, centerLabel: '登録したお店の位置' })}>
+            <Store aria-hidden="true" />
+            お店の位置から
+          </button>
+        )}
         <button type="button" className="btn" onClick={useCurrent} disabled={locating}>
           <LocateFixed aria-hidden="true" />
           {locating ? '現在地を取得中…' : '現在地から'}

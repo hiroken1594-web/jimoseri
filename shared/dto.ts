@@ -30,6 +30,8 @@ export interface SessionUser {
   producer: ProducerProfile | null
   /** 本人の住所（本人にだけ返す。他の利用者には公開しない） */
   address: AddressDto
+  /** 飲食店：お店の位置（地図で探すときの中心の初期値。非公開） */
+  storePosition: { lat: number; lng: number } | null
 }
 
 export interface AddressDto {

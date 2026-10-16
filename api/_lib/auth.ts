@@ -60,6 +60,8 @@ export async function getActor(request: Request): Promise<Actor | null> {
         town: org?.town ?? null,
         addressLine: org?.addressLine ?? null,
       },
+      storePosition:
+        user.restaurant?.latitude != null && user.restaurant.longitude != null ? { lat: user.restaurant.latitude, lng: user.restaurant.longitude } : null,
     },
     producerId: p?.id ?? null,
     restaurantId: user.restaurant?.id ?? null,

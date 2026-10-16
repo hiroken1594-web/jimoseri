@@ -44,7 +44,15 @@ export const PATCH = handle(async (request) => {
       },
     })
   } else if (actor.restaurantId) {
-    await prisma.restaurant.update({ where: { id: actor.restaurantId }, data: { name: body.orgName, area: body.area, ...address } })
+    await prisma.restaurant.update({
+      where: { id: actor.restaurantId },
+      data: {
+        name: body.orgName,
+        area: body.area,
+        ...address,
+        ...(body.storePosition === undefined ? {} : { latitude: body.storePosition?.lat ?? null, longitude: body.storePosition?.lng ?? null }),
+      },
+    })
   }
   const next = await getActor(request)
   return json({ user: next?.user ?? null })

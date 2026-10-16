@@ -45,6 +45,7 @@ export function AddressFields({
   idPrefix,
   addressLineLabel = '番地・建物名',
   addressLineHint,
+  postalRequired,
 }: {
   value: AddressValue
   onChange: (next: AddressValue) => void
@@ -52,6 +53,8 @@ export function AddressFields({
   idPrefix: string
   addressLineLabel?: string
   addressLineHint?: string
+  /** 郵便番号を必須にする（新規登録など） */
+  postalRequired?: boolean
 }) {
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const lastLooked = useRef<string | null>(null)
@@ -92,7 +95,7 @@ export function AddressFields({
 
   return (
     <fieldset className="form" style={{ border: 'none', padding: 0, margin: 0, gap: 16 }}>
-      <Field label="郵便番号" error={errors.postalCode} hint="7桁を入力すると、住所を自動で入力します（ハイフンはあってもなくても構いません）。">
+      <Field label="郵便番号" required={postalRequired} error={errors.postalCode} hint="7桁を入力すると、住所を自動で入力します（ハイフンはあってもなくても構いません）。">
         <div className="input-row">
           <input
             id={`${idPrefix}-zip`}

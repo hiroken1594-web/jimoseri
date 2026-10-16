@@ -1,5 +1,6 @@
 import { APIError } from 'better-auth/api'
 import { createHash, timingSafeEqual } from 'node:crypto'
+import { formatZip, normalizeZip } from '../../shared/geo.js'
 import { signupSchema } from '../../shared/schemas.js'
 import { issueRecoveryCode, registerAccount } from '../_lib/accounts.js'
 import { signupMode } from '../_lib/config.js'
@@ -26,6 +27,10 @@ export const POST = handle(async (request) => {
 
   // 自動登録・ユーザー名の探索の対策：同じ接続元からの登録回数を制限する
   await requireAllowed('signup-ip', clientIp(request), 5, 60 * 60)
+  const zip = normalizeZip(body.postalCode)
+  if (!zip) throw new HttpError(400, 'BAD_REQUEST', '郵便番号は7桁の数字で入力してください', { postalCode: '郵便番号は7桁の数字で入力してください' })
+  const area = (body.area || body.city || body.prefecture || '').trim().slice(0, 40)
+  if (!area) throw new HttpError(400, 'BAD_REQUEST', '市区町村を入力してください', { city: '市区町村を入力してください' })
 
   // Better Auth は、失敗を「応答」で返す場合と「例外」で返す場合がある。どちらも同じ扱いにする。
   let response: Response | null = null
@@ -36,7 +41,7 @@ export const POST = handle(async (request) => {
       password: body.password,
       role: body.role,
       orgName: body.orgName,
-      area: body.area,
+      area,
     })
     if (!response.ok) failure = ((await response.json().catch(() => null)) as typeof failure) ?? {}
   } catch (error) {
@@ -56,6 +61,20 @@ export const POST = handle(async (request) => {
 
   const user = await getPrisma().user.findUnique({ where: { username: body.username } })
   if (!user) throw new HttpError(500, 'INTERNAL', '登録を完了できませんでした。もう一度お試しください。')
+  // 店舗・農園の情報を、登録時の住所とあわせて作る（住所は本人と運営者だけが見る）
+  const prisma = getPrisma()
+  const address = {
+    postalCode: formatZip(zip),
+    prefecture: body.prefecture || null,
+    city: body.city || null,
+    town: body.town || null,
+    addressLine: body.addressLine || null,
+  }
+  if (body.role === 'PRODUCER') {
+    await prisma.producer.upsert({ where: { userId: user.id }, create: { userId: user.id, farmName: body.orgName, area, ...address }, update: address })
+  } else {
+    await prisma.restaurant.upsert({ where: { userId: user.id }, create: { userId: user.id, name: body.orgName, area, ...address }, update: address })
+  }
   const recoveryCode = await issueRecoveryCode(user.id)
 
   // Better Auth が発行したログイン用 Cookie を、そのままブラウザへ渡す

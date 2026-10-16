@@ -6,6 +6,8 @@ import { Account } from './pages/Account.js'
 import { Admin } from './pages/Admin.js'
 import { ForgotPassword, Login, Signup } from './pages/AuthPages.js'
 import { Landing } from './pages/Landing.js'
+import { Start } from './pages/Start.js'
+import { Welcome } from './pages/Welcome.js'
 import { Privacy, Terms } from './pages/Legal.js'
 import { ProducerForm } from './pages/ProducerForm.js'
 import { ProducerList } from './pages/ProducerList.js'
@@ -45,6 +47,8 @@ export function App() {
   return (
     <Routes>
       <Route path="/" element={<GuestOnly><Landing /></GuestOnly>} />
+      <Route path="/guide" element={<Welcome />} />
+      <Route path="/start" element={<GuestOnly><Start /></GuestOnly>} />
       <Route path="/login" element={<GuestOnly><Login /></GuestOnly>} />
       <Route path="/signup" element={<PublicLayout><Signup /></PublicLayout>} />
       <Route path="/forgot-password" element={<PublicLayout><ForgotPassword /></PublicLayout>} />

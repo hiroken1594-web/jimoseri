@@ -1,6 +1,6 @@
 import { ClipboardList, Flag, Heart, Layers, Map, MapPin, ShieldCheck, Sprout, Store, User, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { Link, NavLink } from 'react-router-dom'
+import { Link, NavLink, useLocation } from 'react-router-dom'
 import type { Role } from '../../shared/dto.js'
 import { useSession } from '../session.js'
 
@@ -43,6 +43,7 @@ function Brand() {
 function Footer() {
   return (
     <footer className="app-footer">
+      <Link to="/guide">使い方ガイド</Link>
       <Link to="/terms">利用規約</Link>
       <Link to="/privacy">プライバシーポリシー</Link>
     </footer>
@@ -52,7 +53,10 @@ function Footer() {
 /** ログイン後の画面の枠。役割ごとに色とメニューを変える。 */
 export function Layout({ children, wide }: { children: ReactNode; wide?: boolean }) {
   const { user } = useSession()
+  const { pathname } = useLocation()
   if (!user) return null
+  // 以前に登録した方で、郵便番号が未登録の場合はマイページでの入力をお願いする
+  const needsAddress = user.role !== 'ADMIN' && !user.address.postalCode && pathname !== '/account'
   const RoleIcon = ROLE_ICON[user.role]
   return (
     <div className={`app has-tabbar ${ROLE_CLASS[user.role]}`}>
@@ -78,6 +82,12 @@ export function Layout({ children, wide }: { children: ReactNode; wide?: boolean
         ))}
       </nav>
       <main id="main" className={wide ? 'page page-wide' : 'page'} tabIndex={-1}>
+        {needsAddress && (
+          <p className="info-banner">
+            {user.role === 'RESTAURANT' ? 'お店の郵便番号・住所が未登録です。登録すると、地図でお店の近くから探せます。' : '所在地の郵便番号が未登録です（公開はされません）。'}
+            <Link to="/account">マイページで入力する</Link>
+          </p>
+        )}
         {children}
       </main>
       <Footer />

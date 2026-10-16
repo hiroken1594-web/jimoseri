@@ -1,12 +1,15 @@
 import { Layers, LogIn, Map as MapIcon, ShieldCheck, Sparkles, Sprout, Store, UserPlus } from 'lucide-react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { Notice } from '../components/ui.js'
 import { useSession } from '../session.js'
+import { welcomeSeen } from './Welcome.js'
 
 export function Landing() {
   const { master } = useSession()
   const [params] = useSearchParams()
   const linkError = params.get('error')
+  // はじめての方には、まず使い方の案内（4ステップ）を出す
+  if (!welcomeSeen() && !linkError) return <Navigate to="/guide" replace />
 
   return (
     <div className="landing">
@@ -30,16 +33,14 @@ export function Landing() {
       )}
 
       <div className="actions">
-        <Link className="btn btn-primary btn-large" to="/login">
+        <Link className="btn btn-primary btn-large" to="/start">
+          <UserPlus aria-hidden="true" />
+          {master.signupMode !== 'closed' ? 'はじめる（新規登録・ログイン）' : 'ログイン'}
+        </Link>
+        <Link className="btn btn-large" to="/login">
           <LogIn aria-hidden="true" />
           ログイン
         </Link>
-        {master.signupMode !== 'closed' && (
-          <Link className="btn btn-large" to="/signup">
-            <UserPlus aria-hidden="true" />
-            はじめての方（新規登録）
-          </Link>
-        )}
       </div>
       {master.signupMode === 'closed' && (
         <Notice kind="info" title="新規登録は準備中です">

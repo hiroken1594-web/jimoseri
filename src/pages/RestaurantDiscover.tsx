@@ -10,6 +10,7 @@ import { SearchDiagnostics } from '../components/SearchDiagnostics.js'
 import { CenterAndRadius, FilterFields } from '../components/SearchControls.js'
 import { EmptyState, itemEmoji, Loading, Notice, PageTitle } from '../components/ui.js'
 import { loadSearch, saveSearch, type SearchState } from '../lib/search.js'
+import { useSession } from '../session.js'
 import { setFavorite, useMarketSearch } from '../lib/useMarket.js'
 
 interface Card extends MarketListing {
@@ -52,7 +53,8 @@ function saveSkipped(ids: Set<string>) {
  * 保存は「気になる」への登録だけで、注文・予約・在庫の確保・生産者への通知は行わない。
  */
 export function RestaurantDiscover() {
-  const [state, setState] = useState<SearchState>(() => loadSearch())
+  const { user } = useSession()
+  const [state, setState] = useState<SearchState>(() => loadSearch(user?.storePosition))
   const [picking, setPicking] = useState(false)
   const [skipped, setSkipped] = useState<Set<string>>(() => loadSkipped())
   const [saved, setSaved] = useState<Set<string>>(new Set())

@@ -1,10 +1,12 @@
 import { KeyRound, LogIn, UserPlus } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { formatZip, normalizeZip } from '../../shared/geo.js'
 import { isValidUsername, USERNAME_MAX, USERNAME_MIN } from '../../shared/limits.js'
 import type { SignupInput } from '../../shared/schemas.js'
 import { api, ApiError, errorMessage } from '../api.js'
 import { authClient, authErrorMessage } from '../auth-client.js'
+import { AddressFields, emptyAddress, type AddressValue } from '../components/AddressFields.js'
 import { Choice, Field, Notice, PageTitle } from '../components/ui.js'
 import { homePath, useSession } from '../session.js'
 
@@ -99,6 +101,8 @@ export function RecoveryCodeNotice({ code, onDone, doneLabel }: { code: string; 
 export function Login() {
   const { refresh } = useSession()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const roleHint = params.get('role')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -127,7 +131,8 @@ export function Login() {
 
   return (
     <form className="form" onSubmit={submit} noValidate>
-      <PageTitle icon={LogIn}>ログイン</PageTitle>
+      <PageTitle icon={LogIn}>{roleHint === 'PRODUCER' ? '生産者の方のログイン' : roleHint === 'RESTAURANT' ? '飲食店の方のログイン' : 'ログイン'}</PageTitle>
+      {roleHint && <p className="page-lead">ログイン後の画面は、登録したときの種類（飲食店・生産者）で決まります。</p>}
       {error && <Notice kind="error">{<p>{error}</p>}</Notice>}
       <Field label="ユーザー名" required>
         <input className="input" type="text" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={username} onChange={(e) => setUsername(e.target.value)} />
@@ -152,9 +157,12 @@ export function Login() {
 export function Signup() {
   const { master, refresh } = useSession()
   const navigate = useNavigate()
-  const [role, setRole] = useState<'RESTAURANT' | 'PRODUCER' | null>(null)
+  const [params] = useSearchParams()
+  // 役割の選択画面から来たときは、その役割を選んだ状態で始める（登録前に変更できる）
+  const initialRole = params.get('role')
+  const [role, setRole] = useState<'RESTAURANT' | 'PRODUCER' | null>(initialRole === 'RESTAURANT' || initialRole === 'PRODUCER' ? initialRole : null)
   const [orgName, setOrgName] = useState('')
-  const [area, setArea] = useState('')
+  const [address, setAddress] = useState<AddressValue>(emptyAddress)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [invite, setInvite] = useState('')
@@ -166,7 +174,7 @@ export function Signup() {
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null)
 
   // 入力し直したら、前回のエラー表示を消す
-  useEffect(() => setErrors({}), [role, orgName, area, username, password, invite, agree])
+  useEffect(() => setErrors({}), [role, orgName, address, username, password, invite, agree])
 
   if (recoveryCode) {
     return (
@@ -201,7 +209,9 @@ export function Signup() {
     const next: Record<string, string> = {}
     if (!role) next.role = 'どちらかを選択してください'
     if (!orgName.trim() || orgName.trim().length > 40) next.orgName = '1〜40文字で入力してください'
-    if (!area.trim() || area.trim().length > 40) next.area = '1〜40文字で入力してください'
+    const zip = normalizeZip(address.postalCode)
+    if (!zip) next.postalCode = '郵便番号を7桁の数字で入力してください'
+    if (!address.city.trim()) next.city = '市区町村を入力してください（郵便番号から自動で入ります）'
     if (!isValidUsername(name)) next.username = `半角の英小文字・数字・_ で${USERNAME_MIN}〜${USERNAME_MAX}文字、英字で始めてください`
     if (password.length < master.minPasswordLength) next.password = `${master.minPasswordLength}文字以上で入力してください`
     else if (password.toLowerCase().includes(name) && name.length >= USERNAME_MIN) next.password = 'ユーザー名を含まないパスワードにしてください'
@@ -213,7 +223,20 @@ export function Signup() {
 
     setBusy(true)
     try {
-      const body: SignupInput = { username: name, password, role: role!, orgName: orgName.trim(), area: area.trim(), inviteCode: invite.trim() || undefined, website }
+      const body: SignupInput = {
+        username: name,
+        password,
+        role: role!,
+        orgName: orgName.trim(),
+        area: address.city.trim().slice(0, 40),
+        postalCode: formatZip(zip!),
+        prefecture: address.prefecture.trim() || null,
+        city: address.city.trim() || null,
+        town: address.town.trim() || null,
+        addressLine: address.addressLine.trim() || null,
+        inviteCode: invite.trim() || undefined,
+        website,
+      }
       const result = await api<{ recoveryCode: string }>('/api/signup', { body })
       setRecoveryCode(result.recoveryCode)
       window.scrollTo(0, 0)
@@ -246,12 +269,23 @@ export function Signup() {
           ]}
         />
       </Field>
-      <Field label={role === 'PRODUCER' ? '農園名・屋号' : '店舗名'} required error={errors.orgName}>
+      <Field
+        label={role === 'PRODUCER' ? '事業者名・表示名（農園名・屋号）' : '店舗名'}
+        required
+        error={errors.orgName}
+        hint={role === 'PRODUCER' ? '飲食店に表示される名前です。' : undefined}
+      >
         <input className="input" type="text" autoComplete="organization" maxLength={40} value={orgName} onChange={(e) => setOrgName(e.target.value)} />
       </Field>
-      <Field label="地域（市区町村）" required error={errors.area} hint="例：大阪市福島区、能勢町">
-        <input className="input" type="text" name="area" maxLength={40} value={area} onChange={(e) => setArea(e.target.value)} />
-      </Field>
+      <fieldset className="fieldset">
+        <legend>{role === 'PRODUCER' ? '所在地' : 'お店の住所'}</legend>
+        <p className="muted">
+          {role === 'PRODUCER'
+            ? '運営者の確認用で、他の利用者には公開しません。受け渡しの場所は、登録後に別に登録します（ご自宅の住所が公開されることはありません）。'
+            : '地図で探すときの中心（初期値）に使います。他の利用者には公開しません。'}
+        </p>
+        <AddressFields value={address} onChange={setAddress} errors={errors} idPrefix="signup" postalRequired addressLineHint="任意。あとからマイページで入力・変更できます。" />
+      </fieldset>
       <Field
         label="ユーザー名"
         required

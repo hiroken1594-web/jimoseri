@@ -8,22 +8,24 @@
 :root {
   /* 色（数字が大きいほど濃い） */
   --leaf-900: #123f29;
-  --leaf-700: #1b6a43; /* 白地で 6.5:1 */
-  --leaf-600: #227a4e; /* 白文字を載せて 5.3:1 */
+  --leaf-700: #256b42; /* 白地で 6.4:1 */
+  --leaf-600: #2e7d4f; /* ブランドの緑。白文字を載せて 5.05:1 */
   --leaf-200: #c9e8d4;
   --leaf-100: #e2f3e8;
-  --leaf-50: #f1f9f3;
+  --leaf-50: #f2f8f0; /* 淡い緑 */
   --carrot-800: #8a3608;
   --carrot-700: #a8460d; /* 白地で 5.8:1 */
   --carrot-600: #c2540f; /* 白文字を載せて 4.6:1 */
   --carrot-200: #fbd5b5;
   --carrot-100: #fde9d6;
+  --orange-400: #f08a24; /* ブランドのオレンジ。白文字は不可（2.5:1）。濃い文字（#333 で 5.0:1）か装飾にだけ使う */
+  --orange-100: #fdebd8;
   --corn-500: #f2b705;
   --corn-100: #fff4cc;
-  --cream: #fffaf0;
+  --cream: #fff9f1; /* アイボリー（背景） */
   --cream-200: #f6edd9;
-  --ink: #1d2b22;
-  --ink-soft: #46554b; /* クリーム地で 7:1 */
+  --ink: #333333;
+  --ink-soft: #46554b; /* アイボリー地で 7:1 */
   --muted: #5b685f; /* クリーム地で 5.7:1 */
   --line: #dcd4c2;
   --line-strong: #9aa79e;
@@ -75,7 +77,11 @@ html {
 
 body {
   margin: 0;
-  background: var(--cream);
+  background:
+    radial-gradient(circle at 0% 0%, rgb(46 125 79 / 0.22) 0, rgb(46 125 79 / 0.1) 22vmax, transparent 38vmax) fixed,
+    radial-gradient(circle at 100% 100%, rgb(240 138 36 / 0.24) 0, rgb(240 138 36 / 0.1) 22vmax, transparent 38vmax) fixed,
+    linear-gradient(160deg, var(--leaf-50) 0%, var(--cream) 45%, var(--cream) 70%, #fff4e6 100%) fixed;
+  background-color: var(--cream);
   color: var(--ink);
   font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic UI', Meiryo, system-ui, sans-serif;
   font-size: 16px;
@@ -503,7 +509,7 @@ strong {
   min-height: var(--tap);
   padding: 8px 20px;
   border: 2px solid var(--accent-strong);
-  border-radius: 14px;
+  border-radius: 999px;
   background: var(--white);
   color: var(--accent-strong);
   font: inherit;
@@ -1361,7 +1367,7 @@ select.input {
 
 .hero-stats {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -1395,6 +1401,11 @@ select.input {
 .hero-stats small {
   color: var(--muted);
   white-space: nowrap;
+}
+
+/* 受渡場所の名前・住所のような長い行は折り返す */
+.hero-stats small.block {
+  white-space: normal;
 }
 
 .hero-state {
@@ -2162,4 +2173,268 @@ select.input {
 .swipe-done-illust {
   font-size: 3rem;
   margin: 0;
+}
+
+.fieldset {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px 16px;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.fieldset legend {
+  font-weight: 800;
+  padding: 0 6px;
+}
+
+/* ---- 背景の飾り：左上に緑、右下にオレンジのぼかした円（背景画像として描くので、横にはみ出さない） ---- */
+.info-banner {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--orange-100);
+  border: 1px solid var(--orange-400);
+  font-size: 0.93rem;
+}
+
+.info-banner a {
+  margin-left: 6px;
+  font-weight: 800;
+  color: var(--carrot-800);
+}
+
+/* ---- はじめての案内（4ステップ） ---- */
+.welcome {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom));
+  background: transparent;
+  overflow-y: auto;
+}
+
+.welcome-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.welcome-progress {
+  margin: 0;
+  font-weight: 800;
+  color: var(--leaf-700);
+  min-width: 2.5em;
+}
+
+.welcome-dots {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+}
+
+.welcome-dots span {
+  flex: 1;
+  height: 6px;
+  border-radius: 99px;
+  background: var(--line);
+}
+
+.welcome-dots span.is-done {
+  background: var(--leaf-600);
+}
+
+.welcome-body {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 14px;
+  text-align: center;
+  padding: 24px 4px;
+}
+
+.welcome-body h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.4;
+}
+
+.welcome-body h1:focus,
+.welcome-body h1:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.welcome-body p {
+  margin: 0;
+  max-width: 30em;
+  font-size: 1.05rem;
+}
+
+.welcome-icon {
+  display: grid;
+  place-items: center;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  box-shadow: 0 10px 30px rgb(51 51 51 / 0.12);
+}
+
+.welcome-icon svg {
+  width: 52px;
+  height: 52px;
+}
+
+.welcome-icon.tone-green {
+  background: var(--leaf-600);
+  color: var(--white);
+}
+
+.welcome-icon.tone-orange {
+  background: var(--orange-400);
+  color: #333333;
+}
+
+.welcome-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.welcome-actions .btn {
+  min-width: 8.5em;
+}
+
+/* ---- 役割の選択：左上に緑（飲食店）、右下にオレンジ（生産者） ---- */
+.start {
+  display: grid;
+  gap: 16px;
+}
+
+.start-title {
+  margin: 8px 0 0;
+  text-align: center;
+  font-size: 1.45rem;
+}
+
+.start-circles {
+  display: grid;
+  gap: 18px;
+  justify-items: center;
+}
+
+.role-circle {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 6px;
+  width: min(84vw, 330px);
+  aspect-ratio: 1;
+  padding: 28px;
+  border-radius: 50%;
+  text-align: center;
+  box-shadow: 0 16px 40px rgb(51 51 51 / 0.16);
+}
+
+.role-circle h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.role-circle p {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+
+.role-circle-icon {
+  width: 40px;
+  height: 40px;
+}
+
+.role-circle-green {
+  background: var(--leaf-600);
+  color: var(--white);
+}
+
+.role-circle-orange {
+  background: var(--orange-400);
+  color: #333333;
+}
+
+.role-circle-actions {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  max-width: 220px;
+}
+
+.role-circle .btn {
+  border-radius: 999px;
+  min-height: var(--tap);
+}
+
+.btn-on-green {
+  background: var(--white);
+  color: var(--leaf-700);
+  border-color: var(--white);
+}
+
+.btn-outline-light {
+  background: transparent;
+  color: var(--white);
+  border: 2px solid var(--white);
+}
+
+.btn-on-orange {
+  background: #333333;
+  color: var(--white);
+  border-color: #333333;
+}
+
+.btn-outline-dark {
+  background: transparent;
+  color: #333333;
+  border: 2px solid #333333;
+}
+
+.role-circle .btn:focus-visible {
+  box-shadow: 0 0 0 3px var(--ink), 0 0 0 6px var(--white);
+}
+
+@media (min-width: 720px) {
+  .start-circles {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+    min-height: 620px;
+  }
+
+  .role-circle-green {
+    justify-self: start;
+  }
+
+  .role-circle-orange {
+    justify-self: end;
+    align-self: end;
+  }
+}
+
+.btn-on-green:hover {
+  background: var(--leaf-50);
+}
+
+.btn-outline-light:hover {
+  background: rgb(255 255 255 / 0.14);
+}
+
+.btn-on-orange:hover {
+  background: #1f1f1f;
+}
+
+.btn-outline-dark:hover {
+  background: rgb(51 51 51 / 0.08);
 }

@@ -11,6 +11,7 @@ import { SearchDiagnostics } from '../components/SearchDiagnostics.js'
 import { CenterAndRadius, FilterFields } from '../components/SearchControls.js'
 import { EmptyState, itemEmoji, Loading, Notice, PageTitle } from '../components/ui.js'
 import { loadSearch, saveSearch, type SearchState } from '../lib/search.js'
+import { useSession } from '../session.js'
 import { useMarketSearch } from '../lib/useMarket.js'
 
 function ListingRow({ listing }: { listing: MarketListing }) {
@@ -73,7 +74,8 @@ function LocationCard({ loc, headingLevel = 3 }: { loc: MarketLocation; headingL
 }
 
 export function RestaurantMap() {
-  const [state, setState] = useState<SearchState>(() => loadSearch())
+  const { user } = useSession()
+  const [state, setState] = useState<SearchState>(() => loadSearch(user?.storePosition))
   const [view, setView] = useState<'map' | 'list'>('map')
   const [sort, setSort] = useState<'distance' | 'price'>('distance')
   const [picking, setPicking] = useState(false)

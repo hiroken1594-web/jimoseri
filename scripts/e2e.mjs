@@ -62,10 +62,12 @@ const newPassword = `first-${run}-password`
 const CODE_FORMAT = /^([0-9A-HJKMNP-TV-Z]{4}-){4}[0-9A-HJKMNP-TV-Z]{4}$/
 
 console.log('新規登録・ログイン（ユーザー名＋パスワード）')
-const signupBody = (over = {}) => ({ username: `x_${Math.floor(Math.random() * 1e9)}`, password: newPassword, role: 'PRODUCER', orgName: 'E2E農園', area: '能勢町', ...over })
+const signupBody = (over = {}) => ({ username: `x_${Math.floor(Math.random() * 1e9)}`, password: newPassword, role: 'PRODUCER', orgName: 'E2E農園', postalCode: '563-0101', prefecture: '大阪府', city: '豊能郡能勢町', ...over })
 const signup = (over) => client()('/api/signup', { body: signupBody(over) })
 check('役割に「運営者」を指定した登録は拒否', (await signup({ role: 'ADMIN' })).status === 400)
 check('役割なしの登録は拒否', (await signup({ role: undefined })).status === 400)
+check('郵便番号なしの登録は拒否', (await signup({ postalCode: undefined })).status === 400)
+check('郵便番号の形式が違う登録は拒否', (await signup({ postalCode: '12-345' })).status === 400)
 check('短いパスワードは拒否', (await signup({ password: 'short' })).status === 400)
 check('短すぎるユーザー名は拒否', (await signup({ username: 'ab' })).status === 400)
 check('記号を含むユーザー名は拒否', (await signup({ username: 'bad name!' })).status === 400)
@@ -573,7 +575,8 @@ check('存在しない郵便番号は空の結果', r.status === 200 && Array.is
 r = await zip('0790177')
 check('複数の住所候補があれば、すべて返す', (r.data.results?.length ?? 0) >= 2, JSON.stringify(r.data))
 check('7桁でない郵便番号は拒否', (await zip('12345')).status === 400)
-check('未ログインでは使えない', (await zip('5300001', anon)).status === 401)
+check('郵便番号は新規登録のため未ログインでも使える', (await zip('5300001', anon)).status === 200)
+check('地名検索は未ログインでは使えない', (await anon('/api/geo', { body: { op: 'search', q: '梅田' } })).status === 401)
 r = await restaurant('/api/geo', { body: { op: 'search', q: '梅田' } })
 check('地名から位置を検索できる（日本国内の候補）', r.status === 200 && (r.data.results === null || (r.data.results.length > 0 && r.data.results.every((x) => x.lat > 20 && x.lat < 46))), JSON.stringify(r.data).slice(0, 200))
 check('地名検索の入力が短すぎる場合は拒否', (await restaurant('/api/geo', { body: { op: 'search', q: 'あ' } })).status === 400)

@@ -1,12 +1,14 @@
-import { UserRound } from 'lucide-react'
+import { MapPinned, UserRound } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { ReviewStatus, SessionUser } from '../../shared/dto.js'
+import { DEFAULT_CENTER, type LatLng, type PlaceResult } from '../../shared/geo.js'
 import { isValidUsername, USERNAME_MAX, USERNAME_MIN } from '../../shared/limits.js'
 import type { ProfileInput } from '../../shared/schemas.js'
 import { api, ApiError, errorMessage } from '../api.js'
 import { authClient, authErrorMessage } from '../auth-client.js'
 import { AddressFields, type AddressValue } from '../components/AddressFields.js'
+import { MapView } from '../components/MapView.js'
 import { Field, Notice, PageTitle } from '../components/ui.js'
 import { RecoveryCodeNotice } from './AuthPages.js'
 import { useSession } from '../session.js'
@@ -43,6 +45,31 @@ function ProfileSection({ user }: { user: SessionUser }) {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<Result>(null)
+  const isRestaurant = user.role === 'RESTAURANT'
+  const [storePos, setStorePos] = useState<LatLng | null>(user.storePosition)
+  const [places, setPlaces] = useState<PlaceResult[] | null>(null)
+  const [finding, setFinding] = useState(false)
+  const [findProblem, setFindProblem] = useState<string | null>(null)
+
+  // 住所から、お店の位置の候補を探す（正確な位置は、地図で確かめてもらう）
+  const findOnMap = async () => {
+    const q = [address.prefecture, address.city, address.town, address.addressLine].filter(Boolean).join('')
+    if (q.length < 2) return setFindProblem('先に郵便番号・住所を入力してください。')
+    setFinding(true)
+    setFindProblem(null)
+    setPlaces(null)
+    try {
+      const res = await api<{ results: PlaceResult[] | null; message?: string }>('/api/geo', { body: { op: 'search', q } })
+      if (res.results === null) setFindProblem(res.message ?? '位置を探せませんでした。地図をタップして指定してください。')
+      else if (res.results.length === 0) setFindProblem('住所から位置が見つかりませんでした。地図をタップして指定してください。')
+      else if (res.results.length === 1) setStorePos({ lat: res.results[0].lat, lng: res.results[0].lng })
+      else setPlaces(res.results)
+    } catch (e) {
+      setFindProblem(errorMessage(e))
+    } finally {
+      setFinding(false)
+    }
+  }
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -50,6 +77,7 @@ function ProfileSection({ user }: { user: SessionUser }) {
     setErrors({})
     setResult(null)
     const body: ProfileInput = { orgName, area, ...address }
+    if (isRestaurant) body.storePosition = storePos
     if (p) Object.assign(body, { publicPhone: publicPhone || null, showPhone, publicEmail: publicEmail || null, showEmail, contactNote: contactNote || null })
     try {
       const res = await api<{ user: SessionUser | null }>('/api/me', { method: 'PATCH', body })
@@ -81,11 +109,58 @@ function ProfileSection({ user }: { user: SessionUser }) {
         <input className="input" type="text" maxLength={40} value={area} onChange={(e) => setArea(e.target.value)} />
       </Field>
 
-      <h3 className="sub-title">住所（任意・非公開）</h3>
+      <h3 className="sub-title">{isRestaurant ? 'お店の住所（非公開）' : '所在地（非公開）'}</h3>
       <p className="field-hint">
-        運営者からの確認などのために登録できます。他の利用者には表示されず、地図にも出ません。受渡場所として公開する住所は「受渡拠点」で別に登録します。
+        {isRestaurant
+          ? '他の利用者には表示されません。下の「お店の位置」を保存すると、地図で探すときの中心になります。'
+          : '運営者からの確認などに使います。他の利用者には表示されず、地図にも出ません（ご自宅の住所が公開されることはありません）。受渡場所として公開する住所は「受渡拠点」で別に登録します。'}
       </p>
       <AddressFields idPrefix="profile" value={address} onChange={setAddress} errors={errors} />
+
+      {isRestaurant && (
+        <>
+          <h3 className="sub-title">お店の位置（地図で探すときの中心）</h3>
+          <p className="field-hint">住所から候補を探し、ずれていれば地図をタップして直してください。他の利用者には公開しません。</p>
+          <div className="actions">
+            <button type="button" className="btn btn-small" onClick={() => void findOnMap()} disabled={finding}>
+              <MapPinned aria-hidden="true" />
+              {finding ? '探しています…' : '住所から位置を探す'}
+            </button>
+            {storePos && (
+              <button type="button" className="btn btn-small btn-quiet" onClick={() => setStorePos(null)}>
+                位置を消す
+              </button>
+            )}
+          </div>
+          {findProblem && <Notice kind="warn">{<p>{findProblem}</p>}</Notice>}
+          {places && (
+            <div className="field" role="group" aria-label="位置の候補">
+              {places.map((pl) => (
+                <button
+                  type="button"
+                  key={`${pl.lat},${pl.lng}`}
+                  className="btn btn-small btn-block"
+                  onClick={() => {
+                    setStorePos({ lat: pl.lat, lng: pl.lng })
+                    setPlaces(null)
+                  }}
+                >
+                  {pl.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <MapView
+            small
+            label="お店の位置の地図（タップで位置を指定）"
+            center={storePos ?? DEFAULT_CENTER}
+            zoom={storePos ? 15 : 10}
+            markers={storePos ? [{ id: 'store', lat: storePos.lat, lng: storePos.lng, label: 'お店の位置', count: 0, selected: true }] : []}
+            onMapClick={(pt) => setStorePos(pt)}
+          />
+          <p className="map-note">{storePos ? 'ピンの位置で保存します。「保存する」を押すと反映されます。' : 'まだ位置が登録されていません。'}</p>
+        </>
+      )}
 
       {p && (
         <>

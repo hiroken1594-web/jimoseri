@@ -29,12 +29,14 @@ export const defaultSearch = (): SearchState => ({
   municipality: '',
 })
 
-export function loadSearch(): SearchState {
+/** このタブで前に使った条件。初めて開いたときは、登録したお店の位置（あれば）を中心にする。 */
+export function loadSearch(storePosition?: LatLng | null): SearchState {
+  const initial = (): SearchState => (storePosition ? { ...defaultSearch(), center: storePosition, centerLabel: '登録したお店の位置' } : defaultSearch())
   try {
     const raw = sessionStorage.getItem(KEY)
-    return raw ? { ...defaultSearch(), ...(JSON.parse(raw) as Partial<SearchState>) } : defaultSearch()
+    return raw ? { ...defaultSearch(), ...(JSON.parse(raw) as Partial<SearchState>) } : initial()
   } catch {
-    return defaultSearch()
+    return initial()
   }
 }
 
