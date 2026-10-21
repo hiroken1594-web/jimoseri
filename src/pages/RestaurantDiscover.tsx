@@ -289,6 +289,7 @@ export function RestaurantDiscover() {
                   <span className="chip">通常品</span>
                 )}
               </p>
+              {card.description && <p className="swipe-desc">{card.description}</p>}
               <p className="muted">
                 <MapPin size={16} aria-hidden="true" style={{ verticalAlign: '-3px' }} /> {card.municipality}・{card.locationName}
                 {card.distanceKm !== null && `（直線 ${formatDistance(card.distanceKm)}）`}

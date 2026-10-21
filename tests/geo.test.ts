@@ -78,7 +78,12 @@ describe('位置の検証', () => {
   })
 
   it('受渡拠点：地図に表示するには位置が必要。日本の外の位置は登録できない', () => {
-    const base = { name: 'テスト', prefecture: '大阪府', municipality: '能勢町', address: 'テスト1-1', note: '' }
+    const base = { name: 'テスト', postalCode: '563-0341', prefecture: '大阪府', municipality: '能勢町', town: '宿野', addressLine: '1-1', building: '', note: '' }
+    // 住所は、郵便番号・町域・番地まで必須（建物名は '' で「建物名なし」）
+    for (const key of ['postalCode', 'town', 'addressLine'] as const) {
+      expect(locationCreateSchema.safeParse({ ...base, [key]: '' }).success).toBe(false)
+    }
+    expect(locationCreateSchema.safeParse(base).success).toBe(true)
     // 都道府県は必須（受取エリアの検索に使う）
     expect(locationCreateSchema.safeParse({ ...base, prefecture: '' }).success).toBe(false)
     expect(locationCreateSchema.safeParse({ ...base, showOnMap: true }).success).toBe(false)

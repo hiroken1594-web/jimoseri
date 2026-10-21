@@ -5,7 +5,7 @@ import type { ListingDto, MatchDto, RatingSummary } from '../../shared/dto.js'
 import { formatQty, formatQtyUnit, formatYen, UNIT_LABEL } from '../../shared/labels.js'
 import { formatPickup } from '../../shared/schedule.js'
 import { api, errorMessage } from '../api.js'
-import { DeliveryFields, deliveryDefaults, deliveryPayload, shippingFeeError, type DeliveryValue } from '../components/DeliveryFields.js'
+import { DeliveryFields, deliveryDefaults, deliveryErrors, deliveryPayload, type DeliveryValue } from '../components/DeliveryFields.js'
 import { EmptyState, Field, Loading, Notice, PageTitle } from '../components/ui.js'
 import { parseNumber } from '../lib/forms.js'
 import { notifyMatchesChanged, ratingText } from '../lib/matches.js'
@@ -54,14 +54,17 @@ export function ProducerPropose() {
     if (l) setDelivery(deliveryDefaults(l.pickupLocationName))
   }
 
+  // 入力の誤りは、送信を試みた後に各項目の下に表示する
+  const [tried, setTried] = useState(false)
   const submit = async () => {
+    setTried(true)
     const e: Record<string, string> = {}
     const qty = parseNumber(quantity)
     if (!restaurantId) e.restaurant = '提案する飲食店を選んでください'
     if (!listing) e.listing = '提案する農産物を選んでください'
     if (qty === null || qty <= 0) e.quantity = '数量を数字で入力してください'
     else if (listing && qty * 1000 > listing.quantityMilli) e.quantity = `いまの在庫（${formatQtyUnit(listing.quantityMilli, listing.unit)}）以下にしてください`
-    const feeError = shippingFeeError(delivery)
+    const feeError = deliveryErrors(delivery)
     if (feeError) e.fee = feeError
     setErrors(e)
     if (Object.keys(e).length > 0) return
@@ -136,7 +139,8 @@ export function ProducerPropose() {
               <span className="input-suffix">{listing ? UNIT_LABEL[listing.unit] : ''}</span>
             </div>
           </Field>
-          <DeliveryFields idPrefix="propose" value={delivery} onChange={setDelivery} pickupPlace={listing?.pickupLocationName ?? ''} />
+          <DeliveryFields idPrefix="propose" value={delivery} onChange={setDelivery} pickupPlace={listing?.pickupLocationName ?? ''} showErrors={tried} />
+          {errors.fee && <p className="field-error">{errors.fee}</p>}
           <Field label="ひとこと（任意）">
             <textarea className="input" rows={3} maxLength={500} value={message} placeholder="例：今週採れたトマトです。毎週の取引も相談できます。" onChange={(e) => setMessage(e.target.value)} />
           </Field>

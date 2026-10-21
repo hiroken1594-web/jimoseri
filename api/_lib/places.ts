@@ -22,6 +22,7 @@ export function toLocationDto(row: PickupLocation, producerId: string | null, li
     longitude: showCoords ? row.longitude : null,
     showOnMap: row.showOnMap,
     hours: row.hours,
+    ...(mine ? { reviewNote: row.reviewNote, building: row.building } : {}),
     ...(mine && listingCount !== undefined ? { listingCount } : {}),
   }
 }

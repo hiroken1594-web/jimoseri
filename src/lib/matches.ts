@@ -56,6 +56,11 @@ function usePolledCount(enabled: boolean, load: () => Promise<number>, eventName
 const loadMatchBadge = () => fetchMatches().then((r) => r.unreadTotal + r.pendingTotal)
 const loadNotificationCount = () => api<{ unread: number }>('/api/notifications?count=1').then((r) => r.unread)
 
+const loadQueueCount = () => api<{ pending: number }>('/api/admin?view=count').then((r) => r.pending)
+
+/** 運営者のメニューの「審査待ち」に出す件数 */
+export const useQueueCount = (enabled: boolean) => usePolledCount(enabled, loadQueueCount, 'jimoseri-queue-changed', 30_000)
+
 /** メニューの「やりとり」に出す新着（相手からの未読メッセージ＋返事が必要な提案）の数 */
 export const useMatchBadge = (enabled: boolean) => usePolledCount(enabled, loadMatchBadge, 'jimoseri-matches-changed', 30_000)
 

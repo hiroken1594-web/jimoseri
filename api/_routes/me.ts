@@ -38,12 +38,15 @@ export const PATCH = handle(async (request) => {
     city: body.city === undefined ? undefined : body.city || null,
     town: body.town === undefined ? undefined : body.town || null,
     addressLine: body.addressLine === undefined ? undefined : body.addressLine || null,
+    building: body.building,
   }
   if (actor.producerId) {
     await prisma.producer.update({
       where: { id: actor.producerId },
       data: {
         farmName: body.orgName,
+        // 却下された申請は、内容を直して保存すると再申請（確認待ち）になる
+        ...(actor.user.producer?.approvalStatus === 'REJECTED' ? { approvalStatus: 'PENDING' as const } : {}),
         area: body.area,
         ...address,
         publicPhone: body.publicPhone === undefined ? undefined : body.publicPhone || null,

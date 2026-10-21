@@ -11,7 +11,7 @@ import { isValidUsername, USERNAME_MAX, USERNAME_MIN } from '../../shared/limits
 import type { ProfileInput } from '../../shared/schemas.js'
 import { api, ApiError, errorMessage } from '../api.js'
 import { authClient, authErrorMessage } from '../auth-client.js'
-import { AddressFields, type AddressValue } from '../components/AddressFields.js'
+import { AddressFields, addressErrors, addressFromSaved, addressPayload, type AddressValue } from '../components/AddressFields.js'
 import { MapView } from '../components/MapView.js'
 import { Field, Notice, PageTitle } from '../components/ui.js'
 import { RecoveryCodeNotice } from './AuthPages.js'
@@ -25,6 +25,7 @@ const REVIEW: Record<ReviewStatus, { label: string; className: string; text: str
   },
   APPROVED: { label: '確認済み', className: 'chip chip-live', text: '出品は、条件が合う飲食店の仕入れ案の候補になります。' },
   SUSPENDED: { label: '停止中', className: 'chip chip-off', text: '運営者により停止されています。出品は仕入れ案に表示されません。' },
+  REJECTED: { label: '却下', className: 'chip chip-off', text: '運営者が登録の申請を却下しました。理由を確認し、プロフィールを直して保存すると、もう一度確認を受けられます。' },
 }
 
 type Result = { kind: 'success' | 'error'; message: string } | null
@@ -42,13 +43,7 @@ function ProfileSection({ user }: { user: SessionUser }) {
   const [phone, setPhone] = useState(user.phone ?? '')
   const [phoneShare, setPhoneShare] = useState<PhoneShare>(user.phoneShare)
   const [acceptProposals, setAcceptProposals] = useState(user.acceptProposals)
-  const [address, setAddress] = useState<AddressValue>({
-    postalCode: user.address.postalCode ?? '',
-    prefecture: user.address.prefecture ?? '',
-    city: user.address.city ?? '',
-    town: user.address.town ?? '',
-    addressLine: user.address.addressLine ?? '',
-  })
+  const [address, setAddress] = useState<AddressValue>(() => addressFromSaved(user.address))
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<Result>(null)
@@ -88,7 +83,16 @@ function ProfileSection({ user }: { user: SessionUser }) {
       setErrors({ phone: '電話番号の形式を確認してください（例：090-1234-5678、06-1234-5678）' })
       return
     }
-    const body: ProfileInput = { orgName, area, ...address, phoneShare }
+    // 住所は保存するときにすべて必須（以前に登録した不完全な住所は、ここで不足分の入力をお願いする）
+    const missing = addressErrors(address)
+    if (Object.keys(missing).length > 0) {
+      setBusy(false)
+      setErrors(missing as Record<string, string>)
+      setResult({ kind: 'error', message: '住所に入力されていない項目があります。赤い印の項目を入力してください。' })
+      requestAnimationFrame(() => document.querySelector('.field-invalid')?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+      return
+    }
+    const body: ProfileInput = { orgName, area, ...addressPayload(address), phoneShare }
     if (phone.trim()) body.phone = normalizePhone(phone)!
     if (isRestaurant) body.acceptProposals = acceptProposals
     if (isRestaurant) body.storePosition = storePos
@@ -114,6 +118,7 @@ function ProfileSection({ user }: { user: SessionUser }) {
             審査の状態：<span className={REVIEW[p.approvalStatus].className}>{REVIEW[p.approvalStatus].label}</span>
           </p>
           <p className="field-hint">{REVIEW[p.approvalStatus].text}</p>
+          {p.reviewNote && <p className="field-error">却下の理由：{p.reviewNote}</p>}
         </div>
       )}
       <Field label={p ? '農園名・屋号' : '店舗名'} required error={errors.orgName}>

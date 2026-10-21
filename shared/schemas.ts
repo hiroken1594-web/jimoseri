@@ -75,7 +75,22 @@ export const addressSchema = z.object({
 })
 export type AddressInput = z.infer<typeof addressSchema>
 
-// 新規登録。郵便番号は必須（都道府県・市区町村・町域は自動入力の後も直せる。番地・建物名は任意）。
+const requiredText = (label: string, max: number) =>
+  z.string({ error: `${label}を入力してください` }).trim().min(1, `${label}を入力してください`).max(max, `${label}は${max}文字以内で入力してください`)
+/**
+ * 住所（すべての画面で必須）：郵便番号・都道府県・市区町村・町域・丁目番地。
+ * 建物名・部屋番号は、建物がない場合は空文字（「建物名なし」）。回答そのものは必須。
+ */
+export const requiredAddressShape = {
+  postalCode: z.string({ error: '郵便番号を入力してください' }).trim().regex(/^\d{3}-?\d{4}$/, '郵便番号は7桁の数字で入力してください'),
+  prefecture: requiredText('都道府県', 10),
+  city: requiredText('市区町村', 30),
+  town: requiredText('町域', 60),
+  addressLine: requiredText('丁目・番地・号', 100),
+  building: z.string({ error: '建物名・部屋番号を入力するか、「建物名なし」を選んでください' }).trim().max(60, '建物名・部屋番号は60文字以内で入力してください'),
+}
+
+// 新規登録。住所はすべて必須（郵便番号から自動入力し、あとから直せる。建物名は、ない場合は「建物名なし」）。
 // 住所は本人と運営者だけが見る。生産者の住所（自宅など）は公開しない。受渡場所は別に登録する。
 export const signupSchema = z.object({
   username: usernameField,
@@ -84,11 +99,7 @@ export const signupSchema = z.object({
   orgName: shortText('店舗名・屋号', 40),
   // 地域（市区町村）。省略した場合は住所の市区町村を使う
   area: shortText('地域', 40).optional(),
-  ...addressSchema.shape,
-  postalCode: z
-    .string({ error: '郵便番号を入力してください' })
-    .trim()
-    .regex(/^\d{3}-?\d{4}$/, '郵便番号は7桁の数字で入力してください'),
+  ...requiredAddressShape,
   // 電話番号（必須・他の利用者には原則として非公開）と、取引相手に見せる範囲（初期値は見せない）
   phone: phoneField,
   phoneShare: phoneShareSchema.optional(),
@@ -101,7 +112,7 @@ export const signupSchema = z.object({
 // プロフィールの変更。役割やユーザー名はここでは変更できない。
 export const profileSchema = z
   .object({
-    ...addressSchema.shape,
+    ...requiredAddressShape,
     orgName: shortText('店舗名・農園名', 40),
     area: shortText('地域', 40),
     // 飲食店のみ。お店の位置（地図で探すときの中心の初期値）。本人が地図で確かめて保存する。null で削除。
@@ -144,12 +155,16 @@ export const locationCreateSchema = z
   .object({
     name: shortText('受渡場所の名称', 40),
     municipality: shortText('市区町村', 20),
-    address: shortText('住所・目印', 100),
+    // 飲食店に表示する住所は、サーバーが町域＋丁目番地から作る（送られた値は使わない）
+    address: z.string().trim().max(160).optional(),
     note: z.string().trim().max(100, '補足は100文字以内で入力してください'),
-    postalCode: z.string().trim().regex(/^(\d{3}-?\d{4})?$/, '郵便番号は7桁の数字で入力してください').nullable().optional(),
+    postalCode: requiredAddressShape.postalCode,
     // 都道府県（必須）。飲食店の受取エリア（都道府県）での検索に使う。
     prefecture: z.string({ error: '都道府県を選択してください' }).trim().min(1, '都道府県を選択してください').max(10),
-    town: z.string().trim().max(60).nullable().optional(),
+    town: requiredAddressShape.town,
+    // 丁目・番地・号（飲食店に表示する住所は、町域＋丁目番地。自宅の場合は公開してよい範囲で）
+    addressLine: requiredAddressShape.addressLine,
+    building: requiredAddressShape.building,
     latitude: latitude.nullable().optional(),
     longitude: longitude.nullable().optional(),
     showOnMap: z.boolean().optional(),
@@ -183,9 +198,10 @@ export const marketSearchSchema = z.object({
 export type MarketSearchInput = z.infer<typeof marketSearchSchema>
 
 export const adminActionSchema = z.discriminatedUnion('target', [
-  z.object({ target: z.literal('producer'), id, action: z.enum(['approve', 'suspend']) }),
+  // reject（却下）は審査待ちの申請に対して行い、理由（申請者に表示）が必須
+  z.object({ target: z.literal('producer'), id, action: z.enum(['approve', 'suspend', 'reject']), reason: z.string().trim().max(300, '理由は300文字以内で入力してください').optional() }),
   // delete は、出品に使われていない受渡場所だけ
-  z.object({ target: z.literal('location'), id, action: z.enum(['approve', 'suspend', 'delete']) }),
+  z.object({ target: z.literal('location'), id, action: z.enum(['approve', 'suspend', 'delete', 'reject']), reason: z.string().trim().max(300, '理由は300文字以内で入力してください').optional() }),
   z.object({ target: z.literal('listing'), id, action: z.enum(['approve', 'suspend']) }),
   // パスワードもリカバリーコードも失くした利用者に、本人確認のうえで新しいコードを発行する
   z.object({ target: z.literal('recovery'), username: z.string().trim().toLowerCase().min(1, 'ユーザー名を入力してください').max(40) }),
@@ -216,6 +232,10 @@ export const listingCreateSchema = z
     weekdays: z.number().int().min(0).max(127).nullable().optional(),
     startTime: timeString,
     endTime: timeString,
+    // 商品の説明（任意）と、配送に対応できるか・配送の送料の目安（null は相談）
+    description: z.string().trim().max(300, '商品の説明は300文字以内で入力してください').optional(),
+    deliveryAvailable: z.boolean().optional(),
+    shippingFeeYen: z.number().int().min(0).max(100_000).nullable().optional(),
   })
   .superRefine((v, ctx) => {
     if (v.grade === 'IRREGULAR' && !v.irregularReason) {
@@ -358,6 +378,12 @@ const deliveryMethodSchema = z.enum(['PICKUP', 'DELIVERY', 'DISCUSS'])
 const shippingPayerSchema = z.enum(['UNDECIDED', 'RESTAURANT', 'PRODUCER'])
 const yen = (label: string) =>
   z.number({ error: `${label}を数字で入力してください` }).int(`${label}は1円単位で入力してください`).min(0, `${label}は0円以上にしてください`).max(10_000_000, `${label}が大きすぎます`)
+/** 配送のときの配送先は、郵便番号から始まる住所（例：〒553-0003 大阪府大阪市福島区福島1-2-3 ○○ビル）が必須 */
+const deliveryPlaceRule = (v: { deliveryMethod?: string; deliveryPlace?: string }, ctx: z.RefinementCtx) => {
+  if (v.deliveryMethod === 'DELIVERY' && !/^〒\d{3}-\d{4} \S+(都|道|府|県)\S+/.test(v.deliveryPlace ?? '')) {
+    ctx.addIssue({ code: 'custom', path: ['deliveryPlace'], message: '配送先の住所（郵便番号・都道府県・市区町村・町域・番地）を入力してください' })
+  }
+}
 /** 受渡方法と送料（送料が null のときは「未確定」） */
 const deliveryShape = {
   deliveryMethod: deliveryMethodSchema.optional(),
@@ -383,7 +409,7 @@ export const matchCreateSchema = z.object({
   message: z.string().trim().max(500, 'ひとことは500文字以内で入力してください').optional(),
   demoMode: z.boolean().optional(),
   ...deliveryShape,
-})
+}).superRefine(deliveryPlaceRule)
 
 /** 生産者から飲食店への取引提案（提案の受け取りを許可している飲食店にだけ） */
 export const producerProposalSchema = z.object({
@@ -394,7 +420,7 @@ export const producerProposalSchema = z.object({
   pickupEndMs: z.number().int().optional(),
   message: z.string().trim().max(500, 'ひとことは500文字以内で入力してください').optional(),
   ...deliveryShape,
-})
+}).superRefine(deliveryPlaceRule)
 
 /** 依頼への返事：生産者は承認・辞退、飲食店は取り下げ */
 export const matchRespondSchema = z.object({
@@ -427,6 +453,7 @@ export const termsProposalSchema = z.object({
   note: z.string().trim().max(500, '備考は500文字以内で入力してください').optional(),
 }).superRefine((v, ctx) => {
   if (v.endTime <= v.startTime) ctx.addIssue({ code: 'custom', path: ['endTime'], message: '終了時刻は開始時刻より後にしてください' })
+  deliveryPlaceRule(v, ctx)
 })
 
 export const proposalRespondSchema = z.object({ action: z.enum(['accept', 'reject']) })

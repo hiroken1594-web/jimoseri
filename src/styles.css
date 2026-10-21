@@ -3075,3 +3075,50 @@ select.input {
     bottom: 8px;
   }
 }
+
+/* ---- 運営者：審査待ち ---- */
+.queue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.queue-item p {
+  margin: 0;
+}
+
+.queue-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+
+.sort-select select {
+  min-height: 40px;
+  padding-block: 4px;
+}
+
+.input-static {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--leaf-50);
+  font-weight: 700;
+}
+
+.listing-desc {
+  margin: 0;
+  line-height: 1.8;
+}
+
+.swipe-desc {
+  margin: 0;
+  font-size: 0.9rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

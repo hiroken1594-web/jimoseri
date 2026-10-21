@@ -8,7 +8,7 @@ import type { ListingCreateInput, LocationCreateInput } from '../../shared/schem
 import { ALL_WEEKDAYS, formatPickup, minToTime, WEEKDAY_LABELS } from '../../shared/schedule.js'
 import { addDaysJst, jstDateString, jstTimeString } from '../../shared/time.js'
 import { api, ApiError, errorMessage } from '../api.js'
-import { AddressFields, emptyAddress, type AddressValue } from '../components/AddressFields.js'
+import { AddressFields, addressErrors, addressPayload, emptyAddress, type AddressValue } from '../components/AddressFields.js'
 import { Choice, Field, Loading, Notice, PageTitle } from '../components/ui.js'
 import { parseNumber } from '../lib/forms.js'
 import { useSession } from '../session.js'
@@ -31,6 +31,11 @@ interface Form {
   stepQuantity: string
   grade: Grade
   irregularReason: IrregularReason | ''
+  /** 商品の説明（任意） */
+  description: string
+  /** 配送に対応するか・配送の送料の目安（空欄は相談） */
+  deliveryAvailable: boolean
+  shippingFee: string
 }
 
 type Errors = Partial<Record<keyof Form, string>>
@@ -58,6 +63,9 @@ function formFromListing(l: ListingDto, today: string): Form {
     stepQuantity: formatQty(l.stepMilli),
     grade: l.grade,
     irregularReason: l.irregularReason ?? '',
+    description: l.description,
+    deliveryAvailable: l.deliveryAvailable,
+    shippingFee: l.shippingFeeYen === null ? '' : String(l.shippingFeeYen),
   }
 }
 
@@ -73,18 +81,25 @@ function NewLocation({ onCreated, onCancel }: { onCreated: (location: LocationDt
   const set = (key: 'name' | 'note', v: string) => setValue((x) => ({ ...x, [key]: v }))
 
   const submit = async () => {
+    // 住所はすべて必須（画面でも確かめる。サーバーでも同じ条件を確かめる）
+    const missing: Record<string, string> = { ...addressErrors(address) }
+    if (!value.name.trim()) missing.name = '受渡場所の名称を入力してください'
+    if (Object.keys(missing).length > 0) return setErrors(missing)
     setBusy(true)
     setProblem(null)
     setErrors({})
     try {
+      const ad = addressPayload(address)
       const body: LocationCreateInput = {
         name: value.name.trim(),
         note: value.note.trim(),
-        prefecture: address.prefecture,
-        municipality: address.city.trim(),
-        address: `${address.town.trim()}${address.addressLine.trim()}`,
-        postalCode: address.postalCode.trim() || null,
-        town: address.town.trim() || null,
+        prefecture: ad.prefecture,
+        municipality: ad.city,
+        address: `${ad.town}${ad.addressLine}`,
+        postalCode: ad.postalCode,
+        town: ad.town,
+        addressLine: ad.addressLine,
+        building: ad.building,
       }
       const result = await api<{ location: LocationDto }>('/api/locations', { body })
       onCreated(result.location)
@@ -109,7 +124,7 @@ function NewLocation({ onCreated, onCancel }: { onCreated: (location: LocationDt
         idPrefix="newloc"
         value={address}
         onChange={setAddress}
-        errors={{ prefecture: errors.prefecture, city: errors.municipality, addressLine: errors.address }}
+        errors={{ ...errors, city: errors.city ?? errors.municipality, addressLine: errors.addressLine ?? errors.address }}
         addressLineLabel="番地・目印"
         addressLineHint="飲食店に表示されます。自宅の場合は、公開してよい範囲で入力してください。"
       />
@@ -157,6 +172,9 @@ export function ProducerForm() {
     stepQuantity: '1',
     grade: 'REGULAR',
     irregularReason: '',
+    description: '',
+    deliveryAvailable: false,
+    shippingFee: '',
   })
   const [form, setForm] = useState<Form | null>(() =>
     editing ? (passed ? formFromListing(passed, today) : null) : copyFrom ? { ...formFromListing(copyFrom, today), pickupDate: addDaysJst(today, 1) } : initial(),
@@ -240,6 +258,8 @@ export function ProducerForm() {
     if (!form.startTime) e.startTime = '開始時刻を選択してください'
     if (!form.endTime || form.endTime <= form.startTime) e.endTime = '終了時刻は開始時刻より後にしてください'
     if (form.grade === 'IRREGULAR' && !form.irregularReason) e.irregularReason = '理由を選択してください'
+    const fee = form.shippingFee.trim() ? parseNumber(form.shippingFee) : null
+    if (form.deliveryAvailable && form.shippingFee.trim() && (fee === null || !Number.isInteger(fee))) e.shippingFee = '送料は1円単位の数字で入力してください（相談なら空欄）'
     setErrors(e)
     if (Object.keys(e).length > 0) return
 
@@ -260,6 +280,9 @@ export function ProducerForm() {
       weekdays: form.pickupMode === 'PERIOD' ? form.weekdays : null,
       startTime: form.startTime,
       endTime: form.endTime,
+      description: form.description.trim(),
+      deliveryAvailable: form.deliveryAvailable,
+      shippingFeeYen: form.deliveryAvailable && fee !== null ? fee : null,
     }
     setBusy(true)
     setProblem(null)
@@ -512,6 +535,21 @@ export function ProducerForm() {
               </div>
             </Field>
           </div>
+          <Field label="商品の説明（任意）" hint="味・おすすめの使い方・栽培の工夫など。飲食店の画面に表示されます。">
+            <textarea className="input" rows={3} maxLength={300} value={form.description} placeholder="例：朝どりの桃太郎です。甘みと酸味のバランスが良く、サラダ向きです。" onChange={(e) => update('description', e.target.value)} />
+          </Field>
+          <Field label="配送" error={errors.shippingFee}>
+            <label className="check">
+              <input type="checkbox" checked={form.deliveryAvailable} onChange={(e) => update('deliveryAvailable', e.target.checked)} />
+              <span>飲食店の指定場所への配送に対応できる</span>
+            </label>
+            {form.deliveryAvailable && (
+              <div className="input-row">
+                <input className="input" type="text" inputMode="numeric" aria-label="配送の送料の目安（円）" value={form.shippingFee} placeholder="送料の目安（空欄は相談）" onChange={(e) => update('shippingFee', e.target.value)} />
+                <span className="input-suffix">円</span>
+              </div>
+            )}
+          </Field>
           <Field label="区分" required hint="傷みや鮮度が落ちたものは、規格外としては登録しないでください。">
             <Choice<Grade>
               label="区分"

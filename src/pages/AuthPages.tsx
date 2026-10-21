@@ -1,13 +1,12 @@
 import { KeyRound, LogIn, UserPlus } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { formatZip, normalizeZip } from '../../shared/geo.js'
 import { normalizePhone, PHONE_SHARE_LABEL, type PhoneShare } from '../../shared/phone.js'
 import { isValidUsername, USERNAME_MAX, USERNAME_MIN } from '../../shared/limits.js'
 import type { SignupInput } from '../../shared/schemas.js'
 import { api, ApiError, errorMessage } from '../api.js'
 import { authClient, authErrorMessage } from '../auth-client.js'
-import { AddressFields, emptyAddress, type AddressValue } from '../components/AddressFields.js'
+import { AddressFields, addressErrors, addressPayload, emptyAddress, type AddressValue } from '../components/AddressFields.js'
 import { Choice, Field, Notice, PageTitle } from '../components/ui.js'
 import { homePath, useSession } from '../session.js'
 
@@ -212,10 +211,9 @@ export function Signup() {
     const next: Record<string, string> = {}
     if (!role) next.role = 'どちらかを選択してください'
     if (!orgName.trim() || orgName.trim().length > 40) next.orgName = '1〜40文字で入力してください'
-    const zip = normalizeZip(address.postalCode)
-    if (!zip) next.postalCode = '郵便番号を7桁の数字で入力してください'
+    // 住所はすべて必須（建物名は「建物名なし」も選べる）
+    Object.assign(next, addressErrors(address))
     if (!normalizePhone(phone)) next.phone = '電話番号を入力してください（例：090-1234-5678、06-1234-5678）'
-    if (!address.city.trim()) next.city = '市区町村を入力してください（郵便番号から自動で入ります）'
     if (!isValidUsername(name)) next.username = `半角の英小文字・数字・_ で${USERNAME_MIN}〜${USERNAME_MAX}文字、英字で始めてください`
     if (password.length < master.minPasswordLength) next.password = `${master.minPasswordLength}文字以上で入力してください`
     else if (password.toLowerCase().includes(name) && name.length >= USERNAME_MIN) next.password = 'ユーザー名を含まないパスワードにしてください'
@@ -233,11 +231,7 @@ export function Signup() {
         role: role!,
         orgName: orgName.trim(),
         area: address.city.trim().slice(0, 40),
-        postalCode: formatZip(zip!),
-        prefecture: address.prefecture.trim() || null,
-        city: address.city.trim() || null,
-        town: address.town.trim() || null,
-        addressLine: address.addressLine.trim() || null,
+        ...addressPayload(address),
         phone: normalizePhone(phone)!,
         phoneShare,
         inviteCode: invite.trim() || undefined,
@@ -302,7 +296,7 @@ export function Signup() {
             ? '運営者の確認用で、他の利用者には公開しません。受け渡しの場所は、登録後に別に登録します（ご自宅の住所が公開されることはありません）。'
             : '地図で探すときの中心（初期値）に使います。他の利用者には公開しません。'}
         </p>
-        <AddressFields value={address} onChange={setAddress} errors={errors} idPrefix="signup" postalRequired addressLineHint="任意。あとからマイページで入力・変更できます。" />
+        <AddressFields value={address} onChange={setAddress} errors={errors} idPrefix="signup" />
       </fieldset>
       <Field
         label="ユーザー名"

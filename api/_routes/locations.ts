@@ -9,15 +9,17 @@ import { requireAllowed } from '../_lib/throttle.js'
 const MAX_PENDING_PER_PRODUCER = 5
 
 function toData(body: LocationCreateInput) {
-  const zip = body.postalCode ? normalizeZip(body.postalCode) : null
+  const zip = normalizeZip(body.postalCode)
   return {
     name: body.name,
     municipality: body.municipality,
-    address: body.address,
+    // 飲食店に表示する住所は、町域＋丁目番地（建物名は本人と運営者だけが見る）
+    address: `${body.town}${body.addressLine}`,
     note: body.note,
-    postalCode: zip ? formatZip(zip) : null,
-    prefecture: body.prefecture || null,
-    town: body.town || null,
+    postalCode: zip ? formatZip(zip) : body.postalCode,
+    prefecture: body.prefecture,
+    town: body.town,
+    building: body.building,
     latitude: body.latitude ?? null,
     longitude: body.longitude ?? null,
     showOnMap: body.showOnMap ?? false,
@@ -87,10 +89,10 @@ export const PUT = handle(async (request) => {
   const row = await prisma.pickupLocation.update({
     where: { id: existing.id },
     // 停止中の場所は、編集しても停止のまま（運営者が解除する）
-    data: { ...data, status: moved && existing.status === 'APPROVED' ? 'PENDING' : existing.status },
+    data: { ...data, status: existing.status === 'REJECTED' || (moved && existing.status === 'APPROVED') ? 'PENDING' : existing.status },
   })
   const count = await prisma.listing.count({ where: { pickupLocationId: row.id } })
-  return json({ location: toLocationDto(row, actor.producerId, count), reviewAgain: moved && existing.status === 'APPROVED' })
+  return json({ location: toLocationDto(row, actor.producerId, count), reviewAgain: existing.status === 'REJECTED' || (moved && existing.status === 'APPROVED') })
 })
 
 // 自分の受渡場所の削除（出品に使われていない場合だけ）

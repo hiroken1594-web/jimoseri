@@ -1,0 +1,642 @@
+[
+ {
+  "city": "大阪市北区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市北区",
+  "town": "茶屋町",
+  "postal": "530-0013",
+  "lat": 34.706747,
+  "lng": 135.498961,
+  "extra": false
+ },
+ {
+  "city": "大阪市都島区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市都島区",
+  "town": "都島南通",
+  "postal": "534-0023",
+  "lat": 34.70326,
+  "lng": 135.529298,
+  "extra": false
+ },
+ {
+  "city": "大阪市福島区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市福島区",
+  "town": "吉野",
+  "postal": "553-0006",
+  "lat": 34.690262,
+  "lng": 135.473344,
+  "extra": false
+ },
+ {
+  "city": "大阪市此花区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市此花区",
+  "town": "（その他）",
+  "postal": "554-0000",
+  "lat": 34.6830515,
+  "lng": 135.4523282,
+  "extra": false
+ },
+ {
+  "city": "大阪市中央区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市中央区",
+  "town": "材木町",
+  "postal": "540-0010",
+  "lat": 34.679783,
+  "lng": 135.511188,
+  "extra": false
+ },
+ {
+  "city": "大阪市西区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市西区",
+  "town": "（その他）",
+  "postal": "550-0000",
+  "lat": 34.677332,
+  "lng": 135.48485,
+  "extra": false
+ },
+ {
+  "city": "大阪市港区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市港区",
+  "town": "市岡",
+  "postal": "552-0012",
+  "lat": 34.661662,
+  "lng": 135.46164,
+  "extra": false
+ },
+ {
+  "city": "大阪市大正区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市大正区",
+  "town": "千島",
+  "postal": "551-0003",
+  "lat": 34.651106,
+  "lng": 135.473304,
+  "extra": false
+ },
+ {
+  "city": "大阪市天王寺区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市天王寺区",
+  "town": "小宮町",
+  "postal": "543-0036",
+  "lat": 34.659361,
+  "lng": 135.519732,
+  "extra": false
+ },
+ {
+  "city": "大阪市浪速区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市浪速区",
+  "town": "（その他）",
+  "postal": "556-0000",
+  "lat": 34.659475,
+  "lng": 135.495659,
+  "extra": false
+ },
+ {
+  "city": "大阪市西淀川区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市西淀川区",
+  "town": "野里",
+  "postal": "555-0024",
+  "lat": 34.710188,
+  "lng": 135.461153,
+  "extra": false
+ },
+ {
+  "city": "大阪市淀川区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市淀川区",
+  "town": "三国本町",
+  "postal": "532-0005",
+  "lat": 34.734518,
+  "lng": 135.486831,
+  "extra": false
+ },
+ {
+  "city": "大阪市東淀川区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市東淀川区",
+  "town": "菅原",
+  "postal": "533-0022",
+  "lat": 34.739373,
+  "lng": 135.525074,
+  "extra": false
+ },
+ {
+  "city": "大阪市東成区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市東成区",
+  "town": "大今里西",
+  "postal": "537-0014",
+  "lat": 34.669677,
+  "lng": 135.540669,
+  "extra": false
+ },
+ {
+  "city": "大阪市生野区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市生野区",
+  "town": "（その他）",
+  "postal": "544-0000",
+  "lat": 34.64926,
+  "lng": 135.544037,
+  "extra": false
+ },
+ {
+  "city": "大阪市旭区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市旭区",
+  "town": "大宮",
+  "postal": "535-0002",
+  "lat": 34.725469,
+  "lng": 135.547291,
+  "extra": false
+ },
+ {
+  "city": "大阪市城東区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市城東区",
+  "town": "新喜多",
+  "postal": "536-0015",
+  "lat": 34.69686,
+  "lng": 135.541384,
+  "extra": false
+ },
+ {
+  "city": "大阪市鶴見区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市鶴見区",
+  "town": "横堤",
+  "postal": "538-0052",
+  "lat": 34.702517,
+  "lng": 135.571011,
+  "extra": false
+ },
+ {
+  "city": "大阪市阿倍野区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市阿倍野区",
+  "town": "文の里",
+  "postal": "545-0004",
+  "lat": 34.635877,
+  "lng": 135.521002,
+  "extra": false
+ },
+ {
+  "city": "大阪市住之江区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市住之江区",
+  "town": "御崎",
+  "postal": "559-0013",
+  "lat": 34.608756,
+  "lng": 135.480514,
+  "extra": false
+ },
+ {
+  "city": "大阪市住吉区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市住吉区",
+  "town": "長居東",
+  "postal": "558-0004",
+  "lat": 34.607471,
+  "lng": 135.517014,
+  "extra": false
+ },
+ {
+  "city": "大阪市東住吉区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市東住吉区",
+  "town": "針中野",
+  "postal": "546-0011",
+  "lat": 34.618897,
+  "lng": 135.53511,
+  "extra": false
+ },
+ {
+  "city": "大阪市西成区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市西成区",
+  "town": "岸里",
+  "postal": "557-0041",
+  "lat": 34.633199,
+  "lng": 135.494281,
+  "extra": false
+ },
+ {
+  "city": "大阪市平野区",
+  "prefecture": "大阪府",
+  "apiCity": "大阪市平野区",
+  "town": "平野東",
+  "postal": "547-0043",
+  "lat": 34.622419,
+  "lng": 135.559126,
+  "extra": false
+ },
+ {
+  "city": "豊中市",
+  "prefecture": "大阪府",
+  "apiCity": "豊中市",
+  "town": "中桜塚",
+  "postal": "561-0881",
+  "lat": 34.78061,
+  "lng": 135.470705,
+  "extra": false
+ },
+ {
+  "city": "吹田市",
+  "prefecture": "大阪府",
+  "apiCity": "吹田市",
+  "town": "清和園町",
+  "postal": "564-0039",
+  "lat": 34.75701,
+  "lng": 135.518048,
+  "extra": false
+ },
+ {
+  "city": "茨木市",
+  "prefecture": "大阪府",
+  "apiCity": "茨木市",
+  "town": "駅前",
+  "postal": "567-0888",
+  "lat": 34.816758,
+  "lng": 135.566564,
+  "extra": false
+ },
+ {
+  "city": "高槻市",
+  "prefecture": "大阪府",
+  "apiCity": "高槻市",
+  "town": "桃園町",
+  "postal": "569-0067",
+  "lat": 34.845408,
+  "lng": 135.616162,
+  "extra": false
+ },
+ {
+  "city": "箕面市",
+  "prefecture": "大阪府",
+  "apiCity": "箕面市",
+  "town": "彩都粟生北",
+  "postal": "562-0029",
+  "lat": 34.8271301,
+  "lng": 135.4703848,
+  "extra": false
+ },
+ {
+  "city": "池田市",
+  "prefecture": "大阪府",
+  "apiCity": "池田市",
+  "town": "菅原町",
+  "postal": "563-0055",
+  "lat": 34.822281,
+  "lng": 135.427031,
+  "extra": false
+ },
+ {
+  "city": "摂津市",
+  "prefecture": "大阪府",
+  "apiCity": "摂津市",
+  "town": "（その他）",
+  "postal": "566-0000",
+  "lat": 34.7773842,
+  "lng": 135.5619612,
+  "extra": false
+ },
+ {
+  "city": "島本町",
+  "prefecture": "大阪府",
+  "apiCity": "三島郡島本町",
+  "town": "百山",
+  "postal": "618-0021",
+  "lat": 34.886207,
+  "lng": 135.663718,
+  "extra": false
+ },
+ {
+  "city": "能勢町",
+  "prefecture": "大阪府",
+  "apiCity": "豊能郡能勢町",
+  "town": "大里",
+  "postal": "563-0352",
+  "lat": 34.971388,
+  "lng": 135.412468,
+  "extra": false
+ },
+ {
+  "city": "豊能町",
+  "prefecture": "大阪府",
+  "apiCity": "豊能郡豊能町",
+  "town": "余野",
+  "postal": "563-0219",
+  "lat": 34.92524,
+  "lng": 135.493586,
+  "extra": false
+ },
+ {
+  "city": "堺市堺区",
+  "prefecture": "大阪府",
+  "apiCity": "堺市堺区",
+  "town": "（その他）",
+  "postal": "590-0000",
+  "lat": 34.5733342,
+  "lng": 135.4830091,
+  "extra": false
+ },
+ {
+  "city": "堺市北区",
+  "prefecture": "大阪府",
+  "apiCity": "堺市北区",
+  "town": "東浅香山町",
+  "postal": "591-8008",
+  "lat": 34.584309,
+  "lng": 135.509153,
+  "extra": false
+ },
+ {
+  "city": "堺市中区",
+  "prefecture": "大阪府",
+  "apiCity": "堺市中区",
+  "town": "学園町",
+  "postal": "599-8231",
+  "lat": 34.545929,
+  "lng": 135.506098,
+  "extra": false
+ },
+ {
+  "city": "堺市東区",
+  "prefecture": "大阪府",
+  "apiCity": "堺市東区",
+  "town": "日置荘北町",
+  "postal": "599-8111",
+  "lat": 34.542051,
+  "lng": 135.53754,
+  "extra": false
+ },
+ {
+  "city": "堺市西区",
+  "prefecture": "大阪府",
+  "apiCity": "堺市西区",
+  "town": "鶴田町",
+  "postal": "593-8323",
+  "lat": 34.538742,
+  "lng": 135.466552,
+  "extra": false
+ },
+ {
+  "city": "堺市南区",
+  "prefecture": "大阪府",
+  "apiCity": "堺市南区",
+  "town": "桃山台",
+  "postal": "590-0141",
+  "lat": 34.490183,
+  "lng": 135.486727,
+  "extra": false
+ },
+ {
+  "city": "堺市美原区",
+  "prefecture": "大阪府",
+  "apiCity": "堺市美原区",
+  "town": "黒山",
+  "postal": "587-0002",
+  "lat": 34.538727,
+  "lng": 135.560795,
+  "extra": false
+ },
+ {
+  "city": "和泉市",
+  "prefecture": "大阪府",
+  "apiCity": "和泉市",
+  "town": "井ノ口町",
+  "postal": "594-0072",
+  "lat": 34.482119,
+  "lng": 135.422512,
+  "extra": false
+ },
+ {
+  "city": "高石市",
+  "prefecture": "大阪府",
+  "apiCity": "高石市",
+  "town": "西取石",
+  "postal": "592-0012",
+  "lat": 34.519076,
+  "lng": 135.444757,
+  "extra": false
+ },
+ {
+  "city": "大阪狭山市",
+  "prefecture": "大阪府",
+  "apiCity": "大阪狭山市",
+  "town": "狭山",
+  "postal": "589-0005",
+  "lat": 34.505306,
+  "lng": 135.555916,
+  "extra": false
+ },
+ {
+  "city": "松原市",
+  "prefecture": "大阪府",
+  "apiCity": "松原市",
+  "town": "（その他）",
+  "postal": "580-0000",
+  "lat": 34.576546,
+  "lng": 135.553238,
+  "extra": false
+ },
+ {
+  "city": "羽曳野市",
+  "prefecture": "大阪府",
+  "apiCity": "羽曳野市",
+  "town": "白鳥",
+  "postal": "583-0856",
+  "lat": 34.554257,
+  "lng": 135.60598,
+  "extra": false
+ },
+ {
+  "city": "富田林市",
+  "prefecture": "大阪府",
+  "apiCity": "富田林市",
+  "town": "常盤町",
+  "postal": "584-0032",
+  "lat": 34.500766,
+  "lng": 135.59814,
+  "extra": false
+ },
+ {
+  "city": "東大阪市",
+  "prefecture": "大阪府",
+  "apiCity": "東大阪市",
+  "town": "荒本北",
+  "postal": "577-0011",
+  "lat": 34.680771,
+  "lng": 135.599757,
+  "extra": false
+ },
+ {
+  "city": "八尾市",
+  "prefecture": "大阪府",
+  "apiCity": "八尾市",
+  "town": "東本町",
+  "postal": "581-0004",
+  "lat": 34.627604,
+  "lng": 135.604044,
+  "extra": false
+ },
+ {
+  "city": "守口市",
+  "prefecture": "大阪府",
+  "apiCity": "守口市",
+  "town": "（その他）",
+  "postal": "570-0000",
+  "lat": 34.7376953,
+  "lng": 135.5639036,
+  "extra": false
+ },
+ {
+  "city": "門真市",
+  "prefecture": "大阪府",
+  "apiCity": "門真市",
+  "town": "中町",
+  "postal": "571-0055",
+  "lat": 34.741906,
+  "lng": 135.587509,
+  "extra": false
+ },
+ {
+  "city": "寝屋川市",
+  "prefecture": "大阪府",
+  "apiCity": "寝屋川市",
+  "town": "本町",
+  "postal": "572-0832",
+  "lat": 34.765211,
+  "lng": 135.62783,
+  "extra": false
+ },
+ {
+  "city": "枚方市",
+  "prefecture": "大阪府",
+  "apiCity": "枚方市",
+  "town": "大垣内町",
+  "postal": "573-0027",
+  "lat": 34.812992,
+  "lng": 135.652627,
+  "extra": false
+ },
+ {
+  "city": "交野市",
+  "prefecture": "大阪府",
+  "apiCity": "交野市",
+  "town": "私部",
+  "postal": "576-0052",
+  "lat": 34.789212,
+  "lng": 135.680814,
+  "extra": false
+ },
+ {
+  "city": "岸和田市",
+  "prefecture": "大阪府",
+  "apiCity": "岸和田市",
+  "town": "岸城町",
+  "postal": "596-0073",
+  "lat": 34.459009,
+  "lng": 135.370744,
+  "extra": true
+ },
+ {
+  "city": "泉佐野市",
+  "prefecture": "大阪府",
+  "apiCity": "泉佐野市",
+  "town": "市場東",
+  "postal": "598-0005",
+  "lat": 34.406505,
+  "lng": 135.326762,
+  "extra": true
+ },
+ {
+  "city": "貝塚市",
+  "prefecture": "大阪府",
+  "apiCity": "貝塚市",
+  "town": "加治",
+  "postal": "597-0074",
+  "lat": 34.440656,
+  "lng": 135.359722,
+  "extra": true
+ },
+ {
+  "city": "泉大津市",
+  "prefecture": "大阪府",
+  "apiCity": "泉大津市",
+  "town": "東雲町",
+  "postal": "595-0026",
+  "lat": 34.504952,
+  "lng": 135.412943,
+  "extra": true
+ },
+ {
+  "city": "河内長野市",
+  "prefecture": "大阪府",
+  "apiCity": "河内長野市",
+  "town": "西之山町",
+  "postal": "586-0024",
+  "lat": 34.456465,
+  "lng": 135.562628,
+  "extra": true
+ },
+ {
+  "city": "柏原市",
+  "prefecture": "大阪府",
+  "apiCity": "柏原市",
+  "town": "安堂町",
+  "postal": "582-0016",
+  "lat": 34.579805,
+  "lng": 135.631603,
+  "extra": true
+ },
+ {
+  "city": "藤井寺市",
+  "prefecture": "大阪府",
+  "apiCity": "藤井寺市",
+  "town": "岡",
+  "postal": "583-0027",
+  "lat": 34.574135,
+  "lng": 135.596195,
+  "extra": true
+ },
+ {
+  "city": "四條畷市",
+  "prefecture": "大阪府",
+  "apiCity": "四條畷市",
+  "town": "中野新町",
+  "postal": "575-0054",
+  "lat": 34.738492,
+  "lng": 135.639003,
+  "extra": true
+ },
+ {
+  "city": "大東市",
+  "prefecture": "大阪府",
+  "apiCity": "大東市",
+  "town": "曙町",
+  "postal": "574-0076",
+  "lat": 34.71132,
+  "lng": 135.624871,
+  "extra": true
+ },
+ {
+  "city": "熊取町",
+  "prefecture": "大阪府",
+  "apiCity": "泉南郡熊取町",
+  "town": "五門東",
+  "postal": "590-0414",
+  "lat": 34.395774,
+  "lng": 135.353562,
+  "extra": true
+ }
+]

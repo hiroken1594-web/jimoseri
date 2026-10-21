@@ -52,6 +52,7 @@ export async function getActor(request: Request): Promise<Actor | null> {
             showEmail: p.showEmail,
             contactNote: p.contactNote,
             isDemo: p.isDemo,
+            reviewNote: p.approvalStatus === 'REJECTED' ? p.reviewNote : null,
           }
         : null,
       address: {
@@ -60,6 +61,7 @@ export async function getActor(request: Request): Promise<Actor | null> {
         city: org?.city ?? null,
         town: org?.town ?? null,
         addressLine: org?.addressLine ?? null,
+        building: org?.building ?? null,
       },
       phone: user.phone ? formatPhone(user.phone) : null,
       phoneShare: user.phoneShare,

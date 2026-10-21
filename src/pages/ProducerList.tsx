@@ -16,6 +16,8 @@ const BLOCKER_TEXT: Record<ListingBlocker, string> = {
   PRODUCER_PENDING: '運営者があなたの登録内容を確認中です',
   PRODUCER_SUSPENDED: 'アカウントが運営者により停止されています',
   LOCATION_PENDING: '受渡場所を運営者が確認中です',
+  PRODUCER_REJECTED: '登録の申請が却下されています（マイページで理由を確認し、直して保存すると再申請になります）',
+  LOCATION_REJECTED: '受渡場所の申請が却下されています（「受渡拠点」で理由を確認し、直して保存すると再申請になります）',
   LOCATION_SUSPENDED: '受渡場所が運営者により停止されています',
   LOCATION_NO_PREFECTURE: '受渡場所の都道府県が未登録のため、飲食店の検索に表示されません（「受渡拠点」で都道府県を登録してください）',
   ADMIN_SUSPENDED: 'この出品は運営者により停止されています',

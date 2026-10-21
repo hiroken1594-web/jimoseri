@@ -6,7 +6,7 @@ import { formatQtyUnit } from '../../shared/labels.js'
 import type { Unit } from '../../shared/allocate.js'
 import { api, errorMessage } from '../api.js'
 import { fetchMatches, MATCH_STATUS_CLASS, notifyMatchesChanged, statusLabel } from '../lib/matches.js'
-import { DeliveryFields, deliveryDefaults, deliveryPayload, shippingFeeError, type DeliveryValue } from './DeliveryFields.js'
+import { DeliveryFields, deliveryDefaults, deliveryErrors, deliveryPayload, type DeliveryValue } from './DeliveryFields.js'
 import { Notice } from './ui.js'
 
 export interface RequestLine {
@@ -65,9 +65,12 @@ export function MatchRequestPanel({ lines, demoMode, disabled, title = '生産�
   }
   const sendable = lines.filter((l) => selected.has(l.listingId) && !isActive(l.listingId))
 
+  // 入力の誤りは、送信を試みた後に各項目の下に表示する
+  const [tried, setTried] = useState(false)
   const submit = async () => {
+    setTried(true)
     if (sendable.length === 0) return setError('依頼する生産者を選んでください。')
-    const feeError = shippingFeeError(delivery)
+    const feeError = deliveryErrors(delivery)
     if (feeError) return setError(feeError)
     setBusy(true)
     setError(null)
@@ -134,7 +137,7 @@ export function MatchRequestPanel({ lines, demoMode, disabled, title = '生産�
       </ul>
       {sendable.length > 0 && (
         <>
-          <DeliveryFields idPrefix="match" value={delivery} onChange={setDelivery} pickupPlace={lines[0]?.locationName ?? ''} />
+          <DeliveryFields idPrefix="match" value={delivery} onChange={setDelivery} pickupPlace={lines[0]?.locationName ?? ''} showErrors={tried} />
           <label className="field-label" htmlFor="match-message">
             ひとこと（任意）
           </label>

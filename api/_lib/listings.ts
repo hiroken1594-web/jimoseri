@@ -31,6 +31,8 @@ export function planEligibleWhere(itemId: string, demo = false): Prisma.ListingW
 export function listingBlockers(row: ListingRow): ListingBlocker[] {
   const blockers: ListingBlocker[] = []
   if (row.producer.approvalStatus === 'PENDING') blockers.push('PRODUCER_PENDING')
+  if (row.producer.approvalStatus === 'REJECTED') blockers.push('PRODUCER_REJECTED')
+  if (row.pickupLocation.status === 'REJECTED') blockers.push('LOCATION_REJECTED')
   if (row.producer.approvalStatus === 'SUSPENDED' || row.producer.user.suspended) blockers.push('PRODUCER_SUSPENDED')
   if (row.pickupLocation.status === 'PENDING') blockers.push('LOCATION_PENDING')
   if (row.pickupLocation.status === 'SUSPENDED') blockers.push('LOCATION_SUSPENDED')
@@ -90,6 +92,9 @@ export function toListingDto(row: ListingRow): ListingDto {
     pickupStartMs: c.pickupStartMs,
     pickupEndMs: c.pickupEndMs,
     schedule: c.schedule ?? null,
+    description: row.description,
+    deliveryAvailable: row.deliveryAvailable,
+    shippingFeeYen: row.shippingFeeYen,
     isPublished: c.isPublished,
     updatedAtMs: c.updatedAtMs,
     blockers: listingBlockers(row),

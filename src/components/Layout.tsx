@@ -1,8 +1,8 @@
-import { Bell, ClipboardList, Flag, Handshake, Heart, Layers, Map, MapPin, ShieldCheck, Sprout, Store, User, type LucideIcon } from 'lucide-react'
+import { Bell, ClipboardCheck, ClipboardList, Flag, Handshake, Heart, Layers, Map, MapPin, ShieldCheck, Sprout, Store, User, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import type { Role } from '../../shared/dto.js'
-import { useMatchBadge, useNotificationCount } from '../lib/matches.js'
+import { useMatchBadge, useNotificationCount, useQueueCount } from '../lib/matches.js'
 import { useSession } from '../session.js'
 
 const ROLE_LABEL: Record<Role, string> = { PRODUCER: '生産者', RESTAURANT: '飲食店', ADMIN: '運営者' }
@@ -26,7 +26,8 @@ const NAV: Record<Role, { to: string; label: string; icon: LucideIcon; end?: boo
     { to: '/account', label: 'マイページ', icon: User },
   ],
   ADMIN: [
-    { to: '/admin', label: '審査・管理', icon: ShieldCheck, end: true },
+    { to: '/admin/queue', label: '審査待ち', icon: ClipboardCheck },
+    { to: '/admin', label: '管理', icon: ShieldCheck, end: true },
     { to: '/admin/reports', label: '通報', icon: Flag },
     { to: '/account', label: 'マイページ', icon: User },
   ],
@@ -60,9 +61,15 @@ export function Layout({ children, wide }: { children: ReactNode; wide?: boolean
   // 新着（相手からの未読メッセージ・返事が必要な依頼）の数をメニューに出す
   const badge = useMatchBadge(Boolean(user) && user?.role !== 'ADMIN')
   const bell = useNotificationCount(Boolean(user) && user?.role !== 'ADMIN')
+  // 運営者：審査待ちの件数（実際に確認待ちの申請の数）
+  const queue = useQueueCount(user?.role === 'ADMIN')
+  const badgeFor = (to: string) => (to === '/matches' ? badge : to === '/admin/queue' ? queue : 0)
   if (!user) return null
   // 以前に登録した方で、郵便番号が未登録の場合はマイページでの入力をお願いする
-  const needsAddress = user.role !== 'ADMIN' && !user.address.postalCode && pathname !== '/account'
+  // 住所に不足がある（以前に登録した方など）ときは、マイページでの入力をお願いする（ログインは止めない）
+  const ad = user.address
+  const addressIncomplete = !ad.postalCode || !ad.prefecture || !ad.city || !ad.town || !ad.addressLine || ad.building === null
+  const needsAddress = user.role !== 'ADMIN' && addressIncomplete && pathname !== '/account'
   // 電話番号が未登録の方にも、マイページでの登録をお願いする（ログインは止めない）
   const needsPhone = user.role !== 'ADMIN' && !user.phone && pathname !== '/account'
   const RoleIcon = ROLE_ICON[user.role]
@@ -92,9 +99,9 @@ export function Layout({ children, wide }: { children: ReactNode; wide?: boolean
           <NavLink key={to} to={to} end={end} className={({ isActive }) => (isActive ? 'is-active' : '')}>
             <Icon aria-hidden="true" />
             <span className="nav-label">{label}</span>
-            {to === '/matches' && badge > 0 && (
-              <span className="nav-badge" aria-label={`新着${badge}件`}>
-                {badge > 99 ? '99+' : badge}
+            {badgeFor(to) > 0 && (
+              <span className="nav-badge" aria-label={to === '/admin/queue' ? `審査待ち${badgeFor(to)}件` : `新着${badgeFor(to)}件`}>
+                {badgeFor(to) > 99 ? '99+' : badgeFor(to)}
               </span>
             )}
           </NavLink>
@@ -103,7 +110,7 @@ export function Layout({ children, wide }: { children: ReactNode; wide?: boolean
       <main id="main" className={wide ? 'page page-wide' : 'page'} tabIndex={-1}>
         {needsAddress && (
           <p className="info-banner">
-            {user.role === 'RESTAURANT' ? 'お店の郵便番号・住所が未登録です。登録すると、地図でお店の近くから探せます。' : '所在地の郵便番号が未登録です（公開はされません）。'}
+            {user.role === 'RESTAURANT' ? 'お店の住所に、入力されていない項目があります（郵便番号・町域・番地・建物名など）。' : '所在地の住所に、入力されていない項目があります（公開はされません）。'}
             <Link to="/account">マイページで入力する</Link>
           </p>
         )}

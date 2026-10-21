@@ -106,6 +106,13 @@ export function ListingDetail() {
           </span>
         )}
       </p>
+      {listing.description && <p className="listing-desc">{listing.description}</p>}
+      <p className="chips">
+        <span className={listing.deliveryAvailable ? 'chip chip-live' : 'chip'}>
+          {listing.deliveryAvailable ? `配送に対応（送料の目安：${listing.shippingFeeYen === null ? '相談' : listing.shippingFeeYen === 0 ? '無料' : formatYen(listing.shippingFeeYen)}）` : '受け取りのみ（配送は相談）'}
+        </span>
+        <span className="chip">最低 {formatQtyUnit(listing.minMilli, listing.unit)}から</span>
+      </p>
       <dl className="hero-stats">
         <div>
           <dt>税込単価</dt>

@@ -7,7 +7,7 @@ import type { DeliveryMethod, ShippingPayer } from './trade.js'
 import type { PhoneShare } from './phone.js'
 
 export type Role = 'RESTAURANT' | 'PRODUCER' | 'ADMIN'
-export type ReviewStatus = 'PENDING' | 'APPROVED' | 'SUSPENDED'
+export type ReviewStatus = 'PENDING' | 'APPROVED' | 'SUSPENDED' | 'REJECTED'
 export type SignupMode = 'open' | 'invite' | 'closed'
 
 export interface ProducerProfile {
@@ -19,6 +19,8 @@ export interface ProducerProfile {
   contactNote: string | null
   /** デモデータ（お試し用）の生産者 */
   isDemo: boolean
+  /** 却下の理由（本人にだけ） */
+  reviewNote: string | null
 }
 
 export interface SessionUser {
@@ -48,10 +50,16 @@ export interface AddressDto {
   city: string | null
   town: string | null
   addressLine: string | null
+  /** 建物名・部屋番号（null は未回答、空文字は「建物名なし」） */
+  building: string | null
 }
 
 export interface LocationDto {
   id: string
+  /** 却下の理由（登録した本人にだけ） */
+  reviewNote?: string | null
+  /** 建物名・部屋番号（登録した本人にだけ。空文字は「建物名なし」） */
+  building?: string | null
   name: string
   municipality: string
   address: string
@@ -89,6 +97,10 @@ export interface MarketListing {
   pickupEndMs: number
   /** 期間の出品：期間の最初・最後と曜日・時間帯。1日だけの出品は null */
   period: { startMs: number; endMs: number; schedule: PickupSchedule } | null
+  /** 商品の説明・配送に対応できるか・配送の送料の目安（null は相談） */
+  description: string
+  deliveryAvailable: boolean
+  shippingFeeYen: number | null
   producerId: string
   producerName: string
   updatedAtMs: number
@@ -172,6 +184,8 @@ export interface MasterData {
 /** 出品が仕入れ案の対象になっていない理由 */
 export type ListingBlocker =
   | 'PRODUCER_PENDING'
+  | 'PRODUCER_REJECTED'
+  | 'LOCATION_REJECTED'
   | 'PRODUCER_SUSPENDED'
   | 'LOCATION_PENDING'
   | 'LOCATION_SUSPENDED'
@@ -198,6 +212,9 @@ export interface ListingDto {
   pickupEndMs: number
   /** 期間の出品の曜日・時間帯。1日だけの出品は null */
   schedule: PickupSchedule | null
+  description: string
+  deliveryAvailable: boolean
+  shippingFeeYen: number | null
   isPublished: boolean
   updatedAtMs: number
   blockers: ListingBlocker[]
@@ -467,4 +484,31 @@ export interface ChatResponse {
   phoneNote: string
   /** レビュー：自分の投稿と、公開された相手の投稿 */
   reviews: { mine: ReviewDto | null; partner: ReviewDto | null; partnerSubmitted: boolean }
+}
+
+// ---- 運営者：審査待ち ----
+
+export type QueueType = 'PRODUCER' | 'LOCATION'
+
+export interface QueueItem {
+  type: QueueType
+  id: string
+  /** 申請者（生産者の事業者名） */
+  applicantName: string
+  username: string
+  /** 申請の対象の名前（事業者名・受渡拠点の名称） */
+  title: string
+  /** 申請内容の概要 */
+  summary: string
+  submittedAtMs: number
+  status: ReviewStatus
+  isDemo: boolean
+}
+
+export interface QueueDetail extends QueueItem {
+  /** 申請内容の詳細（項目名と値） */
+  fields: { label: string; value: string }[]
+  latitude: number | null
+  longitude: number | null
+  history: { decision: ReviewStatus; reason: string; atMs: number }[]
 }

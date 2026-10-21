@@ -11,8 +11,9 @@ const STATUS: Record<ReviewStatus, { label: string; className: string }> = {
   PENDING: { label: '確認待ち', className: 'chip chip-warn' },
   APPROVED: { label: '確認済み', className: 'chip chip-live' },
   SUSPENDED: { label: '停止中', className: 'chip chip-off' },
+  REJECTED: { label: '却下', className: 'chip chip-off' },
 }
-const ORDER: Record<ReviewStatus, number> = { PENDING: 0, APPROVED: 1, SUSPENDED: 2 }
+const ORDER: Record<ReviewStatus, number> = { PENDING: 0, APPROVED: 1, SUSPENDED: 2, REJECTED: 3 }
 
 /** パスワードもリカバリーコードも失くした利用者への、コードの再発行 */
 function RecoveryReissue() {

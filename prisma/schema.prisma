@@ -24,6 +24,7 @@ enum ReviewStatus {
   PENDING
   APPROVED
   SUSPENDED
+  REJECTED // 運営者が却下した（理由は reviewNote）。内容を直すと再申請（PENDING）になる
 }
 
 enum Unit {
@@ -187,6 +188,8 @@ model Restaurant {
   // お店の位置（地図検索の中心の初期値）。郵便番号・住所から候補を出し、本人が地図で確かめて保存する。非公開。
   latitude        Float?
   longitude       Float?
+  // 住所の建物名・部屋番号（null は未回答、空文字は「建物名なし」）
+  building        String?
   // 生産者からの取引提案を受け取るか（初期値は受け取らない）。受け取る飲食店だけが、生産者の提案先の一覧に出る
   acceptProposals Boolean         @default(false)
   // デモデータ（お試し用）の飲食店。デモの生産者は、デモの飲食店にだけ提案できる
@@ -219,6 +222,11 @@ model Producer {
   addressLine    String?
   // デモデータ（お試し用）の生産者。出品は飲食店の仕入れ案に使われない。
   isDemo         Boolean          @default(false)
+  // 住所の建物名・部屋番号（null は未回答、空文字は「建物名なし」）
+  building       String?
+  // 審査の結果（却下の理由）と、審査した日時
+  reviewNote     String?
+  reviewedAt     DateTime?
   createdAt      DateTime         @default(now())
   listings       Listing[]
   locations      PickupLocation[]
@@ -237,6 +245,11 @@ model PickupLocation {
   // 郵便番号から自動入力した住所の内訳（公開範囲は address と同じ）
   postalCode   String?
   prefecture   String?
+  // 建物名・部屋番号（null は未回答、空文字は「建物名なし」）
+  building     String?
+  // 審査の結果（却下の理由）と、審査した日時
+  reviewNote   String?
+  reviewedAt   DateTime?
   town         String?
   // 地図上の位置。showOnMap が true で、運営者が確認済みの場所だけを地図・半径検索に出す
   latitude     Float?
@@ -266,40 +279,44 @@ model Item {
 }
 
 model Listing {
-  id               String           @id @default(cuid())
-  producerId       String
-  producer         Producer         @relation(fields: [producerId], references: [id], onDelete: Cascade)
-  itemId           String
-  item             Item             @relation(fields: [itemId], references: [id])
-  variety          String?
-  grade            Grade            @default(REGULAR)
-  irregularReason  IrregularReason?
+  id                String           @id @default(cuid())
+  producerId        String
+  producer          Producer         @relation(fields: [producerId], references: [id], onDelete: Cascade)
+  itemId            String
+  item              Item             @relation(fields: [itemId], references: [id])
+  variety           String?
+  grade             Grade            @default(REGULAR)
+  irregularReason   IrregularReason?
   // 既存注文分を除いて今回販売に回せる量
-  quantity         Decimal          @db.Decimal(10, 3)
-  unit             Unit
+  quantity          Decimal          @db.Decimal(10, 3)
+  unit              Unit
   // 税込単価（円／単位）
-  unitPriceTaxIncl Int
-  minQuantity      Decimal          @db.Decimal(10, 3)
-  stepQuantity     Decimal          @db.Decimal(10, 3)
-  pickupLocationId String
-  pickupLocation   PickupLocation   @relation(fields: [pickupLocationId], references: [id])
+  unitPriceTaxIncl  Int
+  minQuantity       Decimal          @db.Decimal(10, 3)
+  stepQuantity      Decimal          @db.Decimal(10, 3)
+  pickupLocationId  String
+  pickupLocation    PickupLocation   @relation(fields: [pickupLocationId], references: [id])
   // 1日だけの出品：受渡の開始・終了。期間の出品：最初の回の開始・最後の回の終了。
-  pickupStart      DateTime
-  pickupEnd        DateTime
+  pickupStart       DateTime
+  pickupEnd         DateTime
   // 期間の出品だけ：受け取れる曜日（日曜=1 … 土曜=64 の合計）と、その日の時間帯（0時からの分）。null なら1日だけの出品。
-  pickupWeekdays   Int?
-  pickupStartMin   Int?
-  pickupEndMin     Int?
+  pickupWeekdays    Int?
+  pickupStartMin    Int?
+  pickupEndMin      Int?
+  // 商品の説明（任意）と、配送に対応できるか・配送するときの送料の目安（null は相談）
+  description       String           @default("")
+  deliveryAvailable Boolean          @default(false)
+  shippingFeeYen    Int?
   // 生産者本人による公開／停止
-  isPublished      Boolean          @default(true)
+  isPublished       Boolean          @default(true)
   // 運営者による停止
-  adminSuspended   Boolean          @default(false)
+  adminSuspended    Boolean          @default(false)
   // デモデータ（お試し用）。飲食店の仕入れ案には使わない。npm run demo:remove で一括削除できる。
-  isDemo           Boolean          @default(false)
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  favorites        Favorite[]
-  matches          MatchRequest[]
+  isDemo            Boolean          @default(false)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  favorites         Favorite[]
+  matches           MatchRequest[]
 
   @@index([itemId, isPublished])
   @@index([producerId])
@@ -581,6 +598,8 @@ enum NotificationKind {
   COMPLETION_REQUESTED
   COMPLETED
   REVIEW_REQUESTED
+  APPLICATION_APPROVED
+  APPLICATION_REJECTED
 }
 
 model Notification {
@@ -622,4 +641,17 @@ model Review {
 
   @@unique([matchId, reviewerRole])
   @@index([targetRole, targetId])
+}
+
+// 運営者の審査の記録（承認・却下と理由）。申請の種類と対象の ID で、だれが・いつ・どう判断したかを残す
+model ReviewDecision {
+  id          String       @id @default(cuid())
+  targetType  String // PRODUCER（生産者の登録申請）・LOCATION（受渡拠点の登録申請）
+  targetId    String
+  decision    ReviewStatus
+  reason      String       @default("")
+  adminUserId String?
+  createdAt   DateTime     @default(now())
+
+  @@index([targetType, targetId])
 }

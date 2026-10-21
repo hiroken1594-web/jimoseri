@@ -27,6 +27,8 @@ const Matches = lazy(() => import('./pages/Matches.js').then((m) => ({ default: 
 const Notifications = lazy(() => import('./pages/Notifications.js').then((m) => ({ default: m.Notifications })))
 const ProducerPropose = lazy(() => import('./pages/ProducerPropose.js').then((m) => ({ default: m.ProducerPropose })))
 const Chat = lazy(() => import('./pages/Chat.js').then((m) => ({ default: m.Chat })))
+const AdminQueue = lazy(() => import('./pages/AdminQueue.js').then((m) => ({ default: m.AdminQueue })))
+const AdminQueueDetail = lazy(() => import('./pages/AdminQueue.js').then((m) => ({ default: m.AdminQueueDetail })))
 const AdminReports = lazy(() => import('./pages/AdminReports.js').then((m) => ({ default: m.AdminReports })))
 
 const lazyPage = (node: ReactNode) => <Suspense fallback={<Loading label="読み込んでいます…" />}>{node}</Suspense>
@@ -74,6 +76,8 @@ export function App() {
       <Route path="/restaurant/favorites" element={<Require role="RESTAURANT">{lazyPage(<RestaurantFavorites />)}</Require>} />
       <Route path="/restaurant/listing/:id" element={<Require role="RESTAURANT">{lazyPage(<ListingDetail />)}</Require>} />
       <Route path="/producer/locations" element={<Require role="PRODUCER">{lazyPage(<ProducerLocations />)}</Require>} />
+      <Route path="/admin/queue" element={<Require role="ADMIN">{lazyPage(<AdminQueue />)}</Require>} />
+      <Route path="/admin/queue/:type/:id" element={<Require role="ADMIN">{lazyPage(<AdminQueueDetail />)}</Require>} />
       <Route path="/admin/reports" element={<Require role="ADMIN">{lazyPage(<AdminReports />)}</Require>} />
       <Route path="/producer" element={<Require role="PRODUCER"><ProducerList /></Require>} />
       <Route path="/producer/new" element={<Require role="PRODUCER"><ProducerForm /></Require>} />

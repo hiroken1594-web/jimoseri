@@ -7,7 +7,8 @@ import { formatQty, formatQtyUnit, formatYen, UNIT_LABEL } from '../../shared/la
 import { formatJstDate, formatWindow, jstDateString, jstTimeString } from '../../shared/time.js'
 import { DELIVERY_LABEL, PAYER_LABEL, tradeTotals, type DeliveryMethod, type ShippingPayer } from '../../shared/trade.js'
 import { api, errorMessage } from '../api.js'
-import { DeliveryFields, deliveryPayload, shippingFeeError, type DeliveryValue } from '../components/DeliveryFields.js'
+import { emptyAddress } from '../components/AddressFields.js'
+import { DeliveryFields, deliveryErrors, deliveryPayload, shippingFeeError, type DeliveryValue } from '../components/DeliveryFields.js'
 import { ReportButton } from '../components/ReportButton.js'
 import { Dialog, EmptyState, Field, Loading, Notice } from '../components/ui.js'
 import { parseNumber } from '../lib/forms.js'
@@ -206,7 +207,9 @@ function TermsForm({ m, onDone, onCancel }: { m: MatchDto; onDone: () => void; o
   const [date, setDate] = useState(jstDateString(m.pickupStartMs))
   const [startTime, setStartTime] = useState(jstTimeString(m.pickupStartMs))
   const [endTime, setEndTime] = useState(jstTimeString(m.pickupEndMs))
-  const [delivery, setDelivery] = useState<DeliveryValue>({ deliveryMethod: m.deliveryMethod, deliveryPlace: m.deliveryPlace, shippingFee: m.shippingFeeYen === null ? '' : String(m.shippingFeeYen), shippingPayer: m.shippingPayer })
+  // 配送先の住所は、いまの条件の住所を入れ直してもらう（保存しているのは1行の住所のため）
+  const [delivery, setDelivery] = useState<DeliveryValue>({ deliveryMethod: m.deliveryMethod, deliveryPlace: m.deliveryMethod === 'PICKUP' ? m.locationName : m.deliveryMethod === 'DISCUSS' ? m.deliveryPlace : '', address: emptyAddress(), shippingFee: m.shippingFeeYen === null ? '' : String(m.shippingFeeYen), shippingPayer: m.shippingPayer })
+  const [showErrors, setShowErrors] = useState(false)
   const [note, setNote] = useState(m.termsNote)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
@@ -225,8 +228,9 @@ function TermsForm({ m, onDone, onCancel }: { m: MatchDto; onDone: () => void; o
     if (!unitPrice || unitPrice < 1) next.price = '単価を1円以上の数字で入力してください'
     if (!date) next.date = '日付を選んでください'
     if (!startTime || !endTime || endTime <= startTime) next.time = '終了時刻は開始時刻より後にしてください'
-    const fee = shippingFeeError(delivery)
+    const fee = deliveryErrors(delivery)
     if (fee) next.fee = fee
+    setShowErrors(true)
     setErrors(next)
     if (Object.keys(next).length > 0) return
     setBusy(true)
@@ -256,7 +260,9 @@ function TermsForm({ m, onDone, onCancel }: { m: MatchDto; onDone: () => void; o
           <input className="input" type="text" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value)} />
         </Field>
       </div>
-      <DeliveryFields idPrefix="terms" value={delivery} onChange={setDelivery} pickupPlace={m.locationName} />
+      {m.deliveryMethod === 'DELIVERY' && <p className="field-hint">いまの配送先：{m.deliveryPlace}</p>}
+      <DeliveryFields idPrefix="terms" value={delivery} onChange={setDelivery} pickupPlace={m.locationName} showErrors={showErrors} />
+      {errors.fee && <p className="field-error">{errors.fee}</p>}
       <Field label="受渡の日付" required error={errors.date}>
         <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
       </Field>

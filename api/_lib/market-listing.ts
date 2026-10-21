@@ -25,6 +25,9 @@ export interface MarketRow {
   producer: { farmName: string }
   updatedAt: Date
   isDemo: boolean
+  description: string
+  deliveryAvailable: boolean
+  shippingFeeYen: number | null
 }
 
 export const windowOf = (row: MarketRow) => ({ pickupStartMs: row.pickupStart.getTime(), pickupEndMs: row.pickupEnd.getTime(), schedule: scheduleOf(row) })
@@ -53,6 +56,9 @@ export function toMarketListing(row: MarketRow, favorites: Set<string>, nowMs: n
     pickupStartMs: shown.startMs,
     pickupEndMs: shown.endMs,
     period: w.schedule ? { startMs: w.pickupStartMs, endMs: w.pickupEndMs, schedule: w.schedule } : null,
+    description: row.description,
+    deliveryAvailable: row.deliveryAvailable,
+    shippingFeeYen: row.shippingFeeYen,
     producerId: row.producerId,
     producerName: row.producer.farmName,
     updatedAtMs: row.updatedAt.getTime(),

@@ -69,6 +69,7 @@ export const POST = handle(async (request) => {
     city: body.city || null,
     town: body.town || null,
     addressLine: body.addressLine || null,
+    building: body.building,
   }
   if (body.role === 'PRODUCER') {
     await prisma.producer.upsert({ where: { userId: user.id }, create: { userId: user.id, farmName: body.orgName, area, ...address }, update: address })

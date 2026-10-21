@@ -4,7 +4,7 @@ import type { LocationDto, ReviewStatus } from '../../shared/dto.js'
 import { DEFAULT_CENTER, type LatLng, type PlaceResult } from '../../shared/geo.js'
 import type { LocationCreateInput } from '../../shared/schemas.js'
 import { api, ApiError, errorMessage } from '../api.js'
-import { AddressFields, emptyAddress, type AddressValue } from '../components/AddressFields.js'
+import { AddressFields, addressErrors, addressFromSaved, addressPayload, emptyAddress, type AddressValue } from '../components/AddressFields.js'
 import { MapView } from '../components/MapView.js'
 import { EmptyState, Field, Loading, Notice, PageTitle } from '../components/ui.js'
 import { useSession } from '../session.js'
@@ -13,6 +13,7 @@ const STATUS: Record<ReviewStatus, { label: string; className: string; text: str
   PENDING: { label: '確認待ち', className: 'chip chip-warn', text: '運営者の確認が済むまで、仕入れ案と地図には出ません。' },
   APPROVED: { label: '確認済み', className: 'chip chip-live', text: '仕入れ案に使われます。' },
   SUSPENDED: { label: '停止中', className: 'chip chip-off', text: '運営者により停止されています。' },
+  REJECTED: { label: '却下', className: 'chip chip-off', text: '運営者が却下しました。理由を確認し、内容を直して保存すると、もう一度確認を受けられます。' },
 }
 
 interface Draft {
@@ -31,7 +32,7 @@ function draftFrom(l: LocationDto): Draft {
   const line = l.town && l.address.startsWith(l.town) ? l.address.slice(l.town.length) : l.address
   return {
     name: l.name,
-    address: { postalCode: l.postalCode ?? '', prefecture: l.prefecture ?? '', city: l.municipality, town: l.town ?? '', addressLine: line },
+    address: addressFromSaved({ postalCode: l.postalCode, prefecture: l.prefecture, city: l.municipality, town: l.town, addressLine: line, building: l.building ?? null }),
     latLng: l.latitude !== null && l.longitude !== null ? { lat: l.latitude, lng: l.longitude } : null,
     showOnMap: l.showOnMap,
     hours: l.hours,
@@ -73,20 +74,22 @@ function LocationEditor({ initial, editingId, onDone, onCancel }: { initial: Dra
     const a = draft.address
     const next: Record<string, string> = {}
     if (!draft.name.trim()) next.name = '受渡場所の名称を入力してください'
-    if (!a.prefecture) next.prefecture = '都道府県を選択してください（飲食店の受取エリアの検索に使います）'
-    if (!a.city.trim()) next.city = '市区町村を入力してください'
-    if (!`${a.town}${a.addressLine}`.trim()) next.addressLine = '町域・番地・目印のいずれかを入力してください'
+    // 住所はすべて必須（郵便番号・都道府県・市区町村・町域・丁目番地・建物名または「建物名なし」）
+    Object.assign(next, addressErrors(a))
     if (draft.showOnMap && !draft.latLng) next.showOnMap = '地図に表示するには、地図をタップして位置を指定してください'
     setErrors(next)
     if (Object.keys(next).length > 0) return
+    const ad = addressPayload(a)
     const body: LocationCreateInput = {
       name: draft.name.trim(),
-      municipality: a.city.trim(),
-      address: `${a.town.trim()}${a.addressLine.trim()}`,
+      municipality: ad.city,
+      address: `${ad.town}${ad.addressLine}`,
       note: draft.note.trim(),
-      postalCode: a.postalCode.trim() || null,
-      prefecture: a.prefecture,
-      town: a.town.trim() || null,
+      postalCode: ad.postalCode,
+      prefecture: ad.prefecture,
+      town: ad.town,
+      addressLine: ad.addressLine,
+      building: ad.building,
       latitude: draft.latLng?.lat ?? null,
       longitude: draft.latLng?.lng ?? null,
       showOnMap: draft.showOnMap,
@@ -308,6 +311,7 @@ export function ProducerLocations() {
                 <span className="chip">出品 {l.listingCount ?? 0}件</span>
               </p>
               <p className="field-hint">{STATUS[l.status].text}</p>
+              {l.status === 'REJECTED' && l.reviewNote && <p className="field-error">却下の理由：{l.reviewNote}</p>}
               {l.hours && <p className="muted">受取の目安：{l.hours}</p>}
               {l.latitude !== null && l.longitude !== null && (
                 <MapView small label={`${l.name}の位置`} center={{ lat: l.latitude, lng: l.longitude }} zoom={15} markers={[{ id: l.id, lat: l.latitude, lng: l.longitude, label: l.name }]} />
