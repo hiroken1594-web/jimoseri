@@ -14,6 +14,13 @@ for (const t of ['user', 'Producer', 'Restaurant', 'PickupLocation', 'Listing', 
     out[t] = '（表なし）'
   }
 }
+const real = (await db.query(`select
+  (select count(*)::int from "user" u where not exists (select 1 from "Producer" p where p."userId" = u.id and p."isDemo") and not exists (select 1 from "Restaurant" r where r."userId" = u.id and r."isDemo")) as users,
+  (select count(*)::int from "Listing" where not "isDemo") as listings,
+  (select count(*)::int from "PickupLocation" where not "isDemo") as locations,
+  (select count(*)::int from "Producer" where "isDemo") as demo_producers,
+  (select count(*)::int from "Listing" where "isDemo") as demo_listings`)).rows[0]
+console.log('実データ（デモ以外）と、デモの件数:', JSON.stringify(real))
 const mig = await db.query('select migration_name from _prisma_migrations where finished_at is not null order by migration_name')
 console.log(JSON.stringify(out))
 console.log('適用済みのマイグレーション:', mig.rows.map((r) => r.migration_name.slice(0, 14)).join(', '))
