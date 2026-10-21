@@ -3,6 +3,7 @@
 // ローカル開発では vite.config.ts の devApi が同じようにこの関数を呼ぶ。
 import * as admin from './_routes/admin.js'
 import * as auth from './_routes/auth.js'
+import * as chat from './_routes/chat.js'
 import * as demands from './_routes/demands.js'
 import * as extract from './_routes/extract.js'
 import * as favorites from './_routes/favorites.js'
@@ -11,6 +12,7 @@ import * as listings from './_routes/listings.js'
 import * as locations from './_routes/locations.js'
 import * as market from './_routes/market.js'
 import * as master from './_routes/master.js'
+import * as matches from './_routes/matches.js'
 import * as me from './_routes/me.js'
 import * as plan from './_routes/plan.js'
 import * as recovery from './_routes/recovery.js'
@@ -23,6 +25,7 @@ type RouteModule = Partial<Record<'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', H
 const ROUTES: Record<string, RouteModule> = {
   admin,
   auth,
+  chat,
   demands,
   extract,
   favorites,
@@ -31,6 +34,7 @@ const ROUTES: Record<string, RouteModule> = {
   locations,
   market,
   master,
+  matches,
   me,
   plan,
   recovery,

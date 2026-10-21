@@ -1,7 +1,8 @@
-import { ClipboardList, Flag, Heart, Layers, Map, MapPin, ShieldCheck, Sprout, Store, User, type LucideIcon } from 'lucide-react'
+import { ClipboardList, Flag, Handshake, Heart, Layers, Map, MapPin, ShieldCheck, Sprout, Store, User, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import type { Role } from '../../shared/dto.js'
+import { useMatchBadge } from '../lib/matches.js'
 import { useSession } from '../session.js'
 
 const ROLE_LABEL: Record<Role, string> = { PRODUCER: '生産者', RESTAURANT: '飲食店', ADMIN: '運営者' }
@@ -15,11 +16,13 @@ const NAV: Record<Role, { to: string; label: string; icon: LucideIcon; end?: boo
     { to: '/restaurant/map', label: '地図', icon: Map },
     { to: '/restaurant/discover', label: '発見', icon: Layers },
     { to: '/restaurant/favorites', label: '気になる', icon: Heart },
+    { to: '/matches', label: 'やりとり', icon: Handshake },
     { to: '/account', label: 'マイページ', icon: User },
   ],
   PRODUCER: [
     { to: '/producer', label: '出品', icon: Sprout, end: true },
     { to: '/producer/locations', label: '受渡拠点', icon: MapPin },
+    { to: '/matches', label: '依頼', icon: Handshake },
     { to: '/account', label: 'マイページ', icon: User },
   ],
   ADMIN: [
@@ -54,6 +57,8 @@ function Footer() {
 export function Layout({ children, wide }: { children: ReactNode; wide?: boolean }) {
   const { user } = useSession()
   const { pathname } = useLocation()
+  // 新着（相手からの未読メッセージ・返事が必要な依頼）の数をメニューに出す
+  const badge = useMatchBadge(Boolean(user) && user?.role !== 'ADMIN')
   if (!user) return null
   // 以前に登録した方で、郵便番号が未登録の場合はマイページでの入力をお願いする
   const needsAddress = user.role !== 'ADMIN' && !user.address.postalCode && pathname !== '/account'
@@ -78,6 +83,11 @@ export function Layout({ children, wide }: { children: ReactNode; wide?: boolean
           <NavLink key={to} to={to} end={end} className={({ isActive }) => (isActive ? 'is-active' : '')}>
             <Icon aria-hidden="true" />
             <span className="nav-label">{label}</span>
+            {to === '/matches' && badge > 0 && (
+              <span className="nav-badge" aria-label={`新着${badge}件`}>
+                {badge > 99 ? '99+' : badge}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>

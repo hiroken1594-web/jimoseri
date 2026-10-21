@@ -58,6 +58,17 @@ export function normalizeZip(input: string): string | null {
   return /^\d{7}$/.test(digits) ? digits : null
 }
 
+/**
+ * 市区町村名を比べるための形にそろえる。郵便番号の住所は「豊能郡豊能町」のように郡名が付き、
+ * 手で入力した場所は「豊能町」のこともあるため、郡名と前後の空白を除いて比べる。
+ */
+export function normalizeMunicipality(name: string | null | undefined): string {
+  return (name ?? '').trim().replace(/\s+/g, '').replace(/^.+?郡(?=.+[町村]$)/, '')
+}
+
+export const sameMunicipality = (a: string | null | undefined, b: string | null | undefined): boolean =>
+  normalizeMunicipality(a) !== '' && normalizeMunicipality(a) === normalizeMunicipality(b)
+
 export function formatZip(zip7: string): string {
   return /^\d{7}$/.test(zip7) ? `${zip7.slice(0, 3)}-${zip7.slice(3)}` : zip7
 }

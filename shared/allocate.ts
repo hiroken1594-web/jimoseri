@@ -1,5 +1,6 @@
 // 仕入れ案の配分ロジック（仕様 11-3）。
 // AI・DB に依存しない純粋な関数。数量は丸め誤差を避けるため 1/1000 単位の整数（ミリ）で扱う。
+import { sameMunicipality } from './geo.js'
 import type { PickupSchedule } from './schedule.js'
 
 export type Unit = 'KG' | 'PIECE' | 'BUNCH' | 'BAG'
@@ -450,7 +451,7 @@ export function allocate(
     else if (l.grade === 'IRREGULAR' && !demand.allowIrregular) exclude('IRREGULAR', l)
     else if (demand.pickupPointId !== null && l.pickupPointId !== demand.pickupPointId) exclude('POINT', l)
     else if (demand.prefecture && l.prefecture !== demand.prefecture) exclude('POINT', l)
-    else if (demand.area && l.area !== demand.area) exclude('POINT', l)
+    else if (demand.area && !sameMunicipality(l.area, demand.area)) exclude('POINT', l)
     else if (demand.allowedPointIds && !demand.allowedPointIds.includes(l.pickupPointId)) exclude('POINT', l)
     else if (!windowOk(l.pickupStartMs, l.pickupEndMs, demand, nowMs)) exclude('TIME', l)
     else if (maxLatticeAtMost(l, Math.min(l.quantityMilli, demand.quantityMilli)) === 0) exclude('MIN_LOT', l)

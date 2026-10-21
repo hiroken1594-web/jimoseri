@@ -8,7 +8,7 @@ import type { ListingCreateInput, LocationCreateInput } from '../../shared/schem
 import { ALL_WEEKDAYS, formatPickup, minToTime, WEEKDAY_LABELS } from '../../shared/schedule.js'
 import { addDaysJst, jstDateString, jstTimeString } from '../../shared/time.js'
 import { api, ApiError, errorMessage } from '../api.js'
-import { PREFECTURES } from '../components/AddressFields.js'
+import { AddressFields, emptyAddress, type AddressValue } from '../components/AddressFields.js'
 import { Choice, Field, Loading, Notice, PageTitle } from '../components/ui.js'
 import { parseNumber } from '../lib/forms.js'
 import { useSession } from '../session.js'
@@ -64,18 +64,29 @@ function formFromListing(l: ListingDto, today: string): Form {
 /** 受渡場所を新しく登録する小さなフォーム */
 function NewLocation({ onCreated, onCancel }: { onCreated: (location: LocationDto) => void; onCancel: () => void }) {
   const { user } = useSession()
-  const [value, setValue] = useState<LocationCreateInput>({ name: '', prefecture: user?.address.prefecture ?? '', municipality: user?.area ?? '', address: '', note: '' })
+  const [value, setValue] = useState({ name: '', note: '' })
+  // 住所は郵便番号から自動入力する（自動入力の後も直せる）
+  const [address, setAddress] = useState<AddressValue>({ ...emptyAddress(), prefecture: user?.address.prefecture ?? '', city: user?.area ?? '' })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
-  const set = (key: keyof LocationCreateInput, v: string) => setValue((x) => ({ ...x, [key]: v }))
+  const set = (key: 'name' | 'note', v: string) => setValue((x) => ({ ...x, [key]: v }))
 
   const submit = async () => {
     setBusy(true)
     setProblem(null)
     setErrors({})
     try {
-      const result = await api<{ location: LocationDto }>('/api/locations', { body: value })
+      const body: LocationCreateInput = {
+        name: value.name.trim(),
+        note: value.note.trim(),
+        prefecture: address.prefecture,
+        municipality: address.city.trim(),
+        address: `${address.town.trim()}${address.addressLine.trim()}`,
+        postalCode: address.postalCode.trim() || null,
+        town: address.town.trim() || null,
+      }
+      const result = await api<{ location: LocationDto }>('/api/locations', { body })
       onCreated(result.location)
     } catch (e) {
       if (e instanceof ApiError) setErrors(e.fields)
@@ -94,22 +105,15 @@ function NewLocation({ onCreated, onCancel }: { onCreated: (location: LocationDt
       <Field label="名称" required error={errors.name} hint="例：〇〇農園 直売所前、△△集荷場">
         <input className="input" type="text" maxLength={40} value={value.name} onChange={(e) => set('name', e.target.value)} />
       </Field>
-      <Field label="都道府県" required error={errors.prefecture} hint="飲食店が受取エリアを選ぶときに使います。">
-        <select className="input" value={value.prefecture} onChange={(e) => set('prefecture', e.target.value)}>
-          <option value="">選択してください</option>
-          {PREFECTURES.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label="市区町村" required error={errors.municipality} hint="飲食店が受取エリアを選ぶときに使います。例：能勢町">
-        <input className="input" type="text" maxLength={20} value={value.municipality} onChange={(e) => set('municipality', e.target.value)} />
-      </Field>
-      <Field label="住所・目印" required error={errors.address} hint="飲食店に表示されます。自宅の場合は、公開してよい範囲で入力してください。">
-        <input className="input" type="text" maxLength={100} value={value.address} onChange={(e) => set('address', e.target.value)} />
-      </Field>
+      <AddressFields
+        idPrefix="newloc"
+        value={address}
+        onChange={setAddress}
+        errors={{ prefecture: errors.prefecture, city: errors.municipality, addressLine: errors.address }}
+        addressLineLabel="番地・目印"
+        addressLineHint="飲食店に表示されます。自宅の場合は、公開してよい範囲で入力してください。"
+      />
+      <p className="field-hint">地図での位置は、登録後に「受渡拠点」の画面でピンを置いて確かめられます（位置を登録すると、飲食店の地図にも表示できます）。</p>
       <Field label="補足" error={errors.note} hint="例：駐車場あり、到着したら電話してください">
         <input className="input" type="text" maxLength={100} value={value.note} onChange={(e) => set('note', e.target.value)} />
       </Field>

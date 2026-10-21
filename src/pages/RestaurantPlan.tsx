@@ -8,6 +8,7 @@ import { buildCopyText, buildMultiCopyText, describeStockChanges } from '../../s
 import { EXCLUSION_LABEL, formatQtyUnit, formatYen, IRREGULAR_LABEL, UNIT_LABEL } from '../../shared/labels.js'
 import { DAY_MS, formatJstDate, formatJstDateTime, formatWindow, jstToMs } from '../../shared/time.js'
 import { api, errorMessage } from '../api.js'
+import { MatchRequestPanel } from '../components/MatchRequestPanel.js'
 import { Loading, Notice, PageTitle } from '../components/ui.js'
 import { loadConfirmedDemand, saveConfirmedDemand, saveDraft } from '../lib/forms.js'
 
@@ -427,6 +428,23 @@ export function RestaurantPlan() {
             {best.plan.lines.map(lineCard)}
           </div>
         </section>
+      )}
+
+      {best && best.plan.lines.length > 0 && (
+        <MatchRequestPanel
+          key={best.plan.lines.map((l) => l.listingId).join(',')}
+          demoMode={plan.demand.demoMode}
+          disabled={stale || loading}
+          lines={best.plan.lines.map((l) => ({
+            listingId: l.listingId,
+            producerName: l.producerName,
+            itemName: d.itemName,
+            quantityMilli: l.quantityMilli,
+            unit: d.unit,
+            pickupStartMs: plan.listingInfo[l.listingId]?.pickupStartMs,
+            pickupEndMs: plan.listingInfo[l.listingId]?.pickupEndMs,
+          }))}
+        />
       )}
 
       {multi && (

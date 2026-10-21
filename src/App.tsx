@@ -5,7 +5,6 @@ import { Layout, PublicLayout } from './components/Layout.js'
 import { Account } from './pages/Account.js'
 import { Admin } from './pages/Admin.js'
 import { ForgotPassword, Login, Signup } from './pages/AuthPages.js'
-import { Landing } from './pages/Landing.js'
 import { Start } from './pages/Start.js'
 import { Welcome } from './pages/Welcome.js'
 import { Privacy, Terms } from './pages/Legal.js'
@@ -24,6 +23,8 @@ const ListingDetail = lazy(() => import('./pages/ListingDetail.js').then((m) => 
 const ProducerLocations = lazy(() => import('./pages/ProducerLocations.js').then((m) => ({ default: m.ProducerLocations })))
 const RestaurantDiscover = lazy(() => import('./pages/RestaurantDiscover.js').then((m) => ({ default: m.RestaurantDiscover })))
 const RestaurantFavorites = lazy(() => import('./pages/RestaurantFavorites.js').then((m) => ({ default: m.RestaurantFavorites })))
+const Matches = lazy(() => import('./pages/Matches.js').then((m) => ({ default: m.Matches })))
+const Chat = lazy(() => import('./pages/Chat.js').then((m) => ({ default: m.Chat })))
 const AdminReports = lazy(() => import('./pages/AdminReports.js').then((m) => ({ default: m.AdminReports })))
 
 const lazyPage = (node: ReactNode) => <Suspense fallback={<Loading label="読み込んでいます…" />}>{node}</Suspense>
@@ -46,9 +47,10 @@ function GuestOnly({ children }: { children: ReactNode }) {
 export function App() {
   return (
     <Routes>
-      <Route path="/" element={<GuestOnly><Landing /></GuestOnly>} />
+      {/* トップは役割の選択（新しいスタート画面）。古いトップ画面は廃止した。ロゴ・ログアウト後もここに戻る */}
+      <Route path="/" element={<PublicLayout><Start /></PublicLayout>} />
       <Route path="/guide" element={<Welcome />} />
-      <Route path="/start" element={<GuestOnly><Start /></GuestOnly>} />
+      <Route path="/start" element={<Navigate to="/" replace />} />
       <Route path="/login" element={<GuestOnly><Login /></GuestOnly>} />
       <Route path="/signup" element={<PublicLayout><Signup /></PublicLayout>} />
       <Route path="/forgot-password" element={<PublicLayout><ForgotPassword /></PublicLayout>} />
@@ -56,6 +58,9 @@ export function App() {
       <Route path="/privacy" element={<PublicLayout><Privacy /></PublicLayout>} />
 
       <Route path="/account" element={<Require><Account /></Require>} />
+      {/* マッチングの依頼とチャット（飲食店・生産者。運営者は閲覧のみ。実際の権限はサーバーが確認する） */}
+      <Route path="/matches" element={<Require>{lazyPage(<Matches />)}</Require>} />
+      <Route path="/matches/:id" element={<Require>{lazyPage(<Chat />)}</Require>} />
       <Route path="/restaurant" element={<Require role="RESTAURANT"><RestaurantInput /></Require>} />
       <Route path="/restaurant/confirm" element={<Require role="RESTAURANT"><RestaurantConfirm /></Require>} />
       <Route path="/restaurant/plan" element={<Require role="RESTAURANT"><RestaurantPlan /></Require>} />

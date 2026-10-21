@@ -345,3 +345,52 @@ export interface ReportItem {
   updatedAtMs: number
   actions: { actorName: string; action: string; note: string; createdAtMs: number }[]
 }
+
+// ---- マッチング・チャット ----
+
+export type MatchStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELLED'
+
+/** 飲食店から生産者への依頼（生産者が承認するとマッチング成立） */
+export interface MatchDto {
+  id: string
+  status: MatchStatus
+  createdAtMs: number
+  respondedAtMs: number | null
+  /** 依頼のもとになった出品（削除されると null） */
+  listingId: string | null
+  /** 依頼した時点の内容 */
+  itemName: string
+  variety: string | null
+  quantityMilli: number
+  unit: Unit
+  unitPriceYen: number
+  pickupStartMs: number
+  pickupEndMs: number
+  locationName: string
+  message: string
+  declineReason: string | null
+  restaurantName: string
+  producerName: string
+  groupId: string | null
+  isDemo: boolean
+  /** 見ている人の立場 */
+  viewer: 'RESTAURANT' | 'PRODUCER' | 'ADMIN'
+  /** 相手からの未読のメッセージ数 */
+  unread: number
+  lastMessage: { body: string; atMs: number; mine: boolean } | null
+}
+
+export interface ChatMessageDto {
+  id: string
+  clientId: string
+  body: string
+  createdAtMs: number
+  senderRole: Role
+  /** 自分が送ったメッセージか */
+  mine: boolean
+}
+
+export interface ChatResponse {
+  match: MatchDto
+  messages: ChatMessageDto[]
+}

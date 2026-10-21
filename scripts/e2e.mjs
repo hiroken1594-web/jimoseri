@@ -467,6 +467,30 @@ console.log('受取エリア（必須）・受渡期間・ご依頼の検索')
   check('期間の出品：希望日までに受け取れる回がなければ使われない', !(before.result.best?.plan.lines ?? []).some((l) => l.listingId === periodListing.id))
   await farmC(`/api/listings?id=${periodListing.id}`, { method: 'DELETE' })
 }
+
+console.log('マッチング（デモデータ）：仕入れ案の農家ごとに依頼 → 検証農家がログインして承認 → チャット')
+{
+  const tomatoDemand = { ...demand({ quantity: 10, date: DAY2, municipality: '大阪市福島区', allowIrregular: false }), demoMode: true }
+  const fp = (await restaurant('/api/plan', { body: tomatoDemand })).data
+  const lines = fp.result.best.plan.lines.map((l) => ({ listingId: l.listingId, quantity: l.quantityMilli / 1000, pickupStartMs: fp.listingInfo[l.listingId].pickupStartMs, pickupEndMs: fp.listingInfo[l.listingId].pickupEndMs }))
+  r = await restaurant('/api/matches', { body: { lines, demoMode: true, message: 'E2E：福島区のトマトの相談です' } })
+  const sent = r.data?.matches ?? []
+  check('仕入れ案の3農家に、生産者ごとの依頼を一度に送れる（同じまとまりの目印・すべて返事待ち）', r.status === 201 && sent.length === 3 && sent.every((m) => m.status === 'PENDING' && m.isDemo && m.groupId && m.groupId === sent[0].groupId), JSON.stringify(r.data))
+  check('デモの依頼は、デモモードでなければ送れない（実データと混ぜない）', (await restaurant('/api/matches', { body: { lines: [lines[0]], demoMode: false } })).status === 409)
+  const s1 = client()
+  check('検証農家（デモ検証農園A）でログインできる', (await s1.login('demo_s1', demoPassword)).status === 200)
+  const inbox = (await s1('/api/matches')).data
+  const mine = inbox.matches.find((m) => sent.some((x) => x.id === m.id))
+  check('検証農家には、自分あての依頼だけが届く（返事が必要 1件）', inbox.matches.length === 1 && mine && inbox.pendingTotal === 1 && mine.producerName.includes('検証農園A'), JSON.stringify(inbox.matches.map((m) => m.producerName)))
+  r = await s1('/api/matches?id=' + mine.id, { method: 'PATCH', body: { action: 'accept' } })
+  check('検証農家が承認すると、マッチング成立', r.status === 200 && r.data.match.status === 'ACCEPTED')
+  const others = (await restaurant('/api/matches')).data.matches.filter((m) => sent.some((x) => x.id === m.id))
+  check('仕入れ案の農家ごとに状態が分かれる（1件成立・2件は返事待ち）', others.filter((m) => m.status === 'ACCEPTED').length === 1 && others.filter((m) => m.status === 'PENDING').length === 2)
+  r = await restaurant('/api/chat', { body: { matchId: mine.id, body: 'はじめまして。数量と受渡日時の確認をお願いします。', clientId: 'e2e-demo-chat-1' } })
+  const reply = await s1('/api/chat', { body: { matchId: mine.id, body: '承知しました。10時に拠点でお渡しできます。', clientId: 'e2e-demo-chat-2' } })
+  const log = (await restaurant('/api/chat?matchId=' + mine.id)).data
+  check('デモでも、成立したマッチングで双方がメッセージを送受信できる', r.status === 201 && reply.status === 201 && log.messages.length === 2 && log.messages[1].mine === false)
+}
 execSync('npx tsx scripts/demo-data.ts remove', { stdio: 'ignore' })
 const leftovers = await db.query('select (select count(*)::int from "Listing" where "isDemo") as l, (select count(*)::int from "PickupLocation" where "isDemo") as p, (select count(*)::int from "Producer" where "isDemo") as pr')
 check('デモデータを一括削除できる（出品・場所・アカウント）', leftovers.rows[0].l === 0 && leftovers.rows[0].p === 0 && leftovers.rows[0].pr === 0, JSON.stringify(leftovers.rows[0]))
@@ -646,6 +670,70 @@ if (!(await anon('/api/master')).data.aiEnabled) {
     r.data.ok && f.itemId === tomato.id && f.quantity === 10 && f.unit === 'KG' && f.date === DAY2 && f.timeMode === 'DEADLINE' && f.allowIrregular === true && f.budgetMaxYen === null && f.regionText === '大阪近郊',
     JSON.stringify(r.data),
   )
+}
+
+
+console.log('マッチング・チャット（依頼 → 承認・辞退・取り下げ → チャット → 権限）')
+{
+  r = await farmA('/api/listings', { body: listingBody({ grade: 'REGULAR', irregularReason: null, quantity: 6, unitPriceYen: 580, pickupDate: jstDate(3) }) })
+  const listA = r.data.listing
+  r = await farmB('/api/listings', { body: listingBody({ grade: 'REGULAR', irregularReason: null, quantity: 4, unitPriceYen: 560, pickupDate: jstDate(3) }) })
+  const listB = r.data.listing
+  check('生産者・未ログインは依頼を送れない', (await farmA('/api/matches', { body: { lines: [{ listingId: listA.id, quantity: 1 }] } })).status === 403 && (await anon('/api/matches', { body: { lines: [{ listingId: listA.id, quantity: 1 }] } })).status === 401)
+  check('在庫より多い数量では依頼できない', (await restaurant('/api/matches', { body: { lines: [{ listingId: listA.id, quantity: 7 }] } })).status === 400)
+  check('受渡日時が出品と合わない依頼は拒否', (await restaurant('/api/matches', { body: { lines: [{ listingId: listA.id, quantity: 3, pickupStartMs: Date.now() + 3600000, pickupEndMs: Date.now() + 7200000 }] } })).status === 400)
+  r = await restaurant('/api/matches', { body: { lines: [{ listingId: listA.id, quantity: 3 }], message: '来週も同じ量を相談したいです' } })
+  const mA = r.data?.matches?.[0]
+  check('飲食店が生産者にマッチング依頼を送れる（返事待ち）', r.status === 201 && mA?.status === 'PENDING' && mA.producerName && mA.quantityMilli === 3000, JSON.stringify(r.data))
+  check('同じ出品への依頼は、返事待ち・成立の間は重複して送れない', (await restaurant('/api/matches', { body: { lines: [{ listingId: listA.id, quantity: 1 }] } })).status === 409)
+  check('依頼しただけでは、在庫は減らない（在庫の確保をしない）', (await farmA('/api/listings')).data.listings.find((l) => l.id === listA.id).quantityMilli === 6000)
+  check('成立前はチャットを使えない', (await restaurant('/api/chat?matchId=' + mA.id)).status === 403 && (await restaurant('/api/chat', { body: { matchId: mA.id, body: 'x', clientId: 'e2e-before-accept' } })).status === 403)
+  check('関係のない飲食店・生産者は、依頼を見られない', (await restaurant2('/api/matches?id=' + mA.id)).status === 404 && (await farmB('/api/matches?id=' + mA.id)).status === 404)
+  check('飲食店は自分の依頼を承認できない（承認は生産者だけ）', (await restaurant('/api/matches?id=' + mA.id, { method: 'PATCH', body: { action: 'accept' } })).status === 403)
+  check('別の生産者は承認できない', (await farmB('/api/matches?id=' + mA.id, { method: 'PATCH', body: { action: 'accept' } })).status === 404)
+  const inboxA = (await farmA('/api/matches')).data
+  check('生産者に依頼が届き、「返事が必要」の数に入る', inboxA.matches.some((m) => m.id === mA.id && m.status === 'PENDING' && m.restaurantName) && inboxA.pendingTotal >= 1)
+  r = await farmA('/api/matches?id=' + mA.id, { method: 'PATCH', body: { action: 'accept' } })
+  check('生産者が承認すると、マッチング成立', r.status === 200 && r.data.match.status === 'ACCEPTED' && r.data.match.respondedAtMs > 0)
+  check('成立した依頼に、もう一度返事はできない', (await farmA('/api/matches?id=' + mA.id, { method: 'PATCH', body: { action: 'decline' } })).status === 409)
+  const dbMatch = (await db.query('select status from "MatchRequest" where id = $1', [mA.id])).rows[0]
+  check('DB でも、依頼の状態が「成立（ACCEPTED）」になっている', dbMatch?.status === 'ACCEPTED')
+
+  // チャット
+  r = await restaurant('/api/chat', { body: { matchId: mA.id, body: 'はじめまして。数量と最終価格を確認させてください。', clientId: 'e2e-chat-0001' } })
+  check('飲食店からメッセージを送れる', r.status === 201 && r.data.message.mine === true)
+  const unreadA = (await farmA('/api/matches')).data.matches.find((m) => m.id === mA.id).unread
+  check('生産者側に、新着（未読1件）として表示される', unreadA === 1, String(unreadA))
+  const logA = (await farmA('/api/chat?matchId=' + mA.id)).data
+  check('生産者側で受信を確認できる（相手のメッセージとして）', logA.messages.length === 1 && logA.messages[0].mine === false && logA.messages[0].senderRole === 'RESTAURANT')
+  check('開いた後は、未読が0になる', (await farmA('/api/matches')).data.matches.find((m) => m.id === mA.id).unread === 0)
+  r = await farmA('/api/chat', { body: { matchId: mA.id, body: '3kgで1,740円です。木曜10時に拠点でお渡しできます。', clientId: 'e2e-chat-0002' } })
+  check('生産者から返信できる', r.status === 201)
+  const logR = (await restaurant('/api/chat?matchId=' + mA.id)).data
+  check('飲食店側で返信を確認できる（送信日時の順）', logR.messages.length === 2 && logR.messages[1].mine === false && logR.messages[0].createdAtMs <= logR.messages[1].createdAtMs)
+  r = await restaurant('/api/chat', { body: { matchId: mA.id, body: 'はじめまして。数量と最終価格を確認させてください。', clientId: 'e2e-chat-0001' } })
+  check('同じメッセージを再送しても、二重に保存されない', r.status === 201 && (await restaurant('/api/chat?matchId=' + mA.id)).data.messages.length === 2)
+  const dbMsgs = (await db.query('select "senderRole" from "ChatMessage" where "matchId" = $1 order by "createdAt"', [mA.id])).rows.map((x) => x.senderRole)
+  check('メッセージの履歴が DB に保存されている（送った人の立場はサーバーが決める）', JSON.stringify(dbMsgs) === '["RESTAURANT","PRODUCER"]', JSON.stringify(dbMsgs))
+  check('関係のない飲食店は、チャットを読めない・送れない', (await restaurant2('/api/chat?matchId=' + mA.id)).status === 404 && (await restaurant2('/api/chat', { body: { matchId: mA.id, body: 'なりすまし', clientId: 'e2e-spoof-0001' } })).status === 404)
+  check('関係のない生産者は、チャットを読めない・送れない', (await farmB('/api/chat?matchId=' + mA.id)).status === 404 && (await farmB('/api/chat', { body: { matchId: mA.id, body: 'なりすまし', clientId: 'e2e-spoof-0002' } })).status === 404)
+  check('未ログインでは、チャットを読めない', (await anon('/api/chat?matchId=' + mA.id)).status === 401)
+  check('運営者は閲覧だけでき、送信はできない', (await admin('/api/chat?matchId=' + mA.id)).status === 200 && (await admin('/api/chat', { body: { matchId: mA.id, body: 'x', clientId: 'e2e-admin-0001' } })).status === 403)
+  check('空のメッセージは送れない', (await restaurant('/api/chat', { body: { matchId: mA.id, body: '   ', clientId: 'e2e-empty-0001' } })).status === 400)
+
+  // 辞退・取り下げ
+  r = await restaurant('/api/matches', { body: { lines: [{ listingId: listB.id, quantity: 2 }] } })
+  const mB = r.data.matches[0]
+  r = await farmB('/api/matches?id=' + mB.id, { method: 'PATCH', body: { action: 'decline', reason: '今週は数量が足りません' } })
+  check('生産者は辞退でき、理由が飲食店に伝わる。辞退ではチャットは開かない', r.status === 200 && r.data.match.status === 'DECLINED' && (await restaurant('/api/matches?id=' + mB.id)).data.match.declineReason === '今週は数量が足りません' && (await restaurant('/api/chat?matchId=' + mB.id)).status === 403)
+  r = await restaurant('/api/matches', { body: { lines: [{ listingId: listB.id, quantity: 1 }] } })
+  check('辞退された後は、同じ出品にもう一度依頼できる', r.status === 201)
+  const mB2 = r.data.matches[0]
+  r = await restaurant('/api/matches?id=' + mB2.id, { method: 'PATCH', body: { action: 'cancel' } })
+  check('飲食店は返事待ちの依頼を取り下げられる', r.status === 200 && r.data.match.status === 'CANCELLED')
+  check('取り下げた依頼を、生産者は承認できない', (await farmB('/api/matches?id=' + mB2.id, { method: 'PATCH', body: { action: 'accept' } })).status === 409)
+  await farmA('/api/listings?id=' + listA.id, { method: 'DELETE' })
+  check('出品を削除しても、成立したマッチングとチャットは残る', (await restaurant('/api/chat?matchId=' + mA.id)).data.messages.length === 2)
 }
 
 console.log('総当たり・自動登録への対策')

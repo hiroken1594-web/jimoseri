@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GeoUnavailableError, parseNominatim, parseZipcloud } from '../api/_lib/geocode.js'
-import { distanceKm, formatDistance, formatZip, isInJapan, isValidLatLng, normalizeZip, withinRadius } from '../shared/geo.js'
+import { distanceKm, formatDistance, formatZip, isInJapan, isValidLatLng, normalizeZip, withinRadius, sameMunicipality } from '../shared/geo.js'
 import { addressSchema, locationCreateSchema, marketSearchSchema } from '../shared/schemas.js'
 
 // 位置情報・郵便番号の共通処理（外部サービスへの通信はしない）
@@ -152,5 +152,20 @@ describe('地名検索（Nominatim）の応答の読み取り', () => {
 
   it('配列でない応答は GeoUnavailableError', () => {
     expect(() => parseNominatim({ error: 'busy' })).toThrow(GeoUnavailableError)
+  })
+})
+
+describe('市区町村名の比較', () => {
+  it('郵便番号の住所（郡名つき）と、郡名なしの入力を同じ市区町村として扱う', () => {
+    expect(sameMunicipality('豊能郡豊能町', '豊能町')).toBe(true)
+    expect(sameMunicipality('豊能郡能勢町', '能勢町')).toBe(true)
+    expect(sameMunicipality(' 大阪市福島区 ', '大阪市福島区')).toBe(true)
+  })
+  it('違う市区町村や、空の値は同じとしない', () => {
+    expect(sameMunicipality('豊能町', '能勢町')).toBe(false)
+    expect(sameMunicipality('', '')).toBe(false)
+    expect(sameMunicipality(null, '豊能町')).toBe(false)
+    // 「郡」で終わらない名前は変えない
+    expect(sameMunicipality('郡山市', '山市')).toBe(false)
   })
 })

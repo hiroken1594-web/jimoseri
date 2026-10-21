@@ -4,7 +4,7 @@
 // 地図上で近いことを理由に、仕入れ案の受渡条件が成立するとは判定しない。
 // 検索の中心（現在地など）は計算に使うだけで、DB にもログにも残さない。
 import type { ListingDetail, MarketDiagnostics, MarketLocation, MarketSearchResponse, MarketStageKey, MarketWider, PublicContact } from '../../shared/dto.js'
-import { distanceKm, RADIUS_OPTIONS, withinRadius } from '../../shared/geo.js'
+import { distanceKm, RADIUS_OPTIONS, sameMunicipality, withinRadius } from '../../shared/geo.js'
 import { availableOn } from '../../shared/schedule.js'
 import { marketSearchSchema, type MarketSearchInput } from '../../shared/schemas.js'
 import type { Prisma } from '../../generated/prisma/client.js'
@@ -46,7 +46,7 @@ function runStages(rows: Row[], body: MarketSearchInput, nowMs: number) {
     {
       key: 'AREA',
       label: `＋受取エリア（${body.prefecture}${body.municipality ? ` ${body.municipality}` : ''}）`,
-      keep: (r) => r.pickupLocation.prefecture === body.prefecture && (!body.municipality || r.pickupLocation.municipality === body.municipality),
+      keep: (r) => r.pickupLocation.prefecture === body.prefecture && (!body.municipality || sameMunicipality(r.pickupLocation.municipality, body.municipality)),
     },
     {
       key: 'FILTER',

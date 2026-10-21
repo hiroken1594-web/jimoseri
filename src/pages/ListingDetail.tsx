@@ -2,15 +2,16 @@ import { ArrowLeft, ClipboardList, Heart, MapPin, Phone } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import type { ListingDetail as Detail } from '../../shared/dto.js'
-import { formatQtyUnit, formatYen, IRREGULAR_LABEL, UNIT_LABEL } from '../../shared/labels.js'
+import { formatQty, formatQtyUnit, formatYen, IRREGULAR_LABEL, UNIT_LABEL } from '../../shared/labels.js'
 import { formatJstDateTime } from '../../shared/time.js'
 import { formatMarketPickup } from '../../shared/schedule.js'
 import { api, errorMessage } from '../api.js'
 import { MapView } from '../components/MapView.js'
+import { MatchRequestPanel } from '../components/MatchRequestPanel.js'
 import { ReportButton } from '../components/ReportButton.js'
-import { EmptyState, itemEmoji, Loading, Notice } from '../components/ui.js'
+import { EmptyState, Field, itemEmoji, Loading, Notice } from '../components/ui.js'
 import { isDemoMode, setDemoMode } from '../lib/demoMode.js'
-import { emptyDemandForm, saveDraft } from '../lib/forms.js'
+import { emptyDemandForm, parseNumber, saveDraft } from '../lib/forms.js'
 import { setFavorite } from '../lib/useMarket.js'
 
 export function ListingDetail() {
@@ -23,6 +24,7 @@ export function ListingDetail() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [requestQty, setRequestQty] = useState('')
 
   const load = useCallback(async () => {
     try {
@@ -199,8 +201,34 @@ export function ListingDetail() {
         )}
       </section>
 
+      <section className="card">
+        <h2 className="card-title">この生産者にマッチング依頼</h2>
+        <Field label="希望する数量" hint={`いまの在庫：${formatQtyUnit(listing.quantityMilli, listing.unit)}`}>
+          <div className="input-row">
+            <input className="input" type="text" inputMode="decimal" value={requestQty} placeholder={formatQty(listing.quantityMilli)} onChange={(e) => setRequestQty(e.target.value)} />
+            <span className="input-suffix">{unit}</span>
+          </div>
+        </Field>
+        <MatchRequestPanel
+          key={`${listing.id}-${requestQty}`}
+          title="依頼を送る"
+          demoMode={listing.isDemo}
+          lines={[
+            {
+              listingId: listing.id,
+              producerName: listing.producerName,
+              itemName: listing.itemName,
+              quantityMilli: Math.min(listing.quantityMilli, Math.round((parseNumber(requestQty) ?? listing.quantityMilli / 1000) * 1000)),
+              unit: listing.unit,
+              pickupStartMs: listing.pickupStartMs,
+              pickupEndMs: listing.pickupEndMs,
+            },
+          ]}
+        />
+      </section>
+
       <p className="disclaimer">
-        「気になる」への保存や、この画面を見ることは、注文・予約・在庫の確保ではありません。生産者への通知も行いません。実際のお取引は、生産者と直接ご相談ください。
+        「気になる」への保存や、この画面を見ることは、注文・予約・在庫の確保ではなく、生産者にも通知されません。マッチング依頼を送ると、生産者の「依頼」に届きます（承認されても、注文の確定や在庫の確保にはなりません）。
       </p>
       <div className="chips" style={{ justifyContent: 'flex-end' }}>
         <ReportButton target={{ type: 'LISTING', id: listing.id, label: `${listing.itemName}（${listing.producerName}）` }} />

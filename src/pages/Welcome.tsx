@@ -81,7 +81,7 @@ export function Welcome() {
 
   const finish = () => {
     markSeen()
-    navigate(user ? homePath(user) : '/start', { replace: true })
+    navigate(user ? homePath(user) : '/', { replace: true })
   }
 
   return (

@@ -332,3 +332,38 @@ export const reportUpdateSchema = z.object({
 })
 export type ReportCreateInput = z.infer<typeof reportCreateSchema>
 export type ReportUpdateInput = z.infer<typeof reportUpdateSchema>
+
+// ---- マッチング（飲食店 → 生産者への依頼）・チャット ----
+
+/** 飲食店が生産者に依頼を送る。1回に最大3件（仕入れ案の農家ごと、または出品の詳細から1件） */
+export const matchCreateSchema = z.object({
+  lines: z
+    .array(
+      z.object({
+        listingId: id,
+        quantity: z.number({ error: '数量を数字で入力してください' }).positive('数量は0より大きくしてください').max(100_000, '数量が大きすぎます'),
+        // 受け取りたい回（期間の出品では、その日の時間帯）。省略すると次に受け取れる回
+        pickupStartMs: z.number().int().optional(),
+        pickupEndMs: z.number().int().optional(),
+      }),
+    )
+    .min(1, '依頼する生産者を選んでください')
+    .max(3, '一度に依頼できるのは3件までです'),
+  message: z.string().trim().max(500, 'ひとことは500文字以内で入力してください').optional(),
+  demoMode: z.boolean().optional(),
+})
+
+/** 依頼への返事：生産者は承認・辞退、飲食店は取り下げ */
+export const matchRespondSchema = z.object({
+  action: z.enum(['accept', 'decline', 'cancel']),
+  reason: z.string().trim().max(200, '理由は200文字以内で入力してください').optional(),
+})
+
+export const chatSendSchema = z.object({
+  matchId: id,
+  body: z.string().trim().min(1, 'メッセージを入力してください').max(1000, 'メッセージは1000文字以内で入力してください'),
+  // 再送しても二重に保存しないための番号（画面側で作る）
+  clientId: z.string().min(8).max(64),
+})
+
+export type MatchCreateInput = z.infer<typeof matchCreateSchema>

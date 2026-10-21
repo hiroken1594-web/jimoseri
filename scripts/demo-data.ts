@@ -365,6 +365,14 @@ for (const [code, farmName, qty, price, hubId, startOffset] of scenario) {
 }
 
 await prisma.user.createMany({ data: userRows })
+// 検証用の5農家（デモ検証農園A〜E）は、マッチング依頼の承認・チャットを試せるよう、demo_farm と同じパスワードでログインできるようにする
+{
+  const { getAuth } = await import('../api/_lib/auth-server.js')
+  const hash = await (await getAuth().$context).password.hash(demoPassword)
+  await prisma.account.createMany({
+    data: scenario.map(([code]) => ({ id: `demo-account-${code}`, accountId: `demo-user-${code}`, providerId: 'credential', userId: `demo-user-${code}`, password: hash })),
+  })
+}
 await prisma.producer.createMany({ data: producerRows })
 for (let i = 0; i < manyListings.length; i += 500) await prisma.listing.createMany({ data: manyListings.slice(i, i + 500) })
 
@@ -373,5 +381,5 @@ console.log(`デモの生産者を追加しました：${userRows.length} 件（
 
 const summary = PLAN.map((p) => `${{ active: '公開中', stopped: '公開停止', soldout: '数量0', expired: '受渡日を過ぎた', suspended: '運営者が停止', pending: '場所が確認待ち' }[p.kind]} ${p.count}`).join('・')
 console.log(`デモ用アカウント demo_farm の出品 ${rows.length} 件（${summary}）、受渡場所 3 件`)
-console.log(`デモ用アカウント：ユーザー名「${DEMO_USERNAME}」。パスワードは ${PASSWORD_FILE} に保存しました（Git には含まれません）。`)
+console.log(`デモ用アカウント：ユーザー名「${DEMO_USERNAME}」と、検証用の農家 ${scenario.map(([code]) => `demo_${code.toLowerCase()}`).join('・')}。パスワードは ${PASSWORD_FILE} に保存しました（Git には含まれません）。`)
 await prisma.$disconnect()

@@ -82,6 +82,7 @@ model User {
   restaurant   Restaurant?
   aiUsages     AiUsage[]
   reports      Report[]
+  chatMessages ChatMessage[]
 
   @@map("user")
 }
@@ -164,9 +165,9 @@ model RateLimit {
 // ---- 業務データ ----
 
 model Restaurant {
-  id          String     @id @default(cuid())
-  userId      String     @unique
-  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String         @id @default(cuid())
+  userId      String         @unique
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   name        String
   area        String
   // 住所（任意・本人と運営者だけが見る。他の利用者には公開しない）
@@ -180,6 +181,7 @@ model Restaurant {
   longitude   Float?
   demands     Demand[]
   favorites   Favorite[]
+  matches     MatchRequest[]
 }
 
 model Producer {
@@ -207,6 +209,7 @@ model Producer {
   createdAt      DateTime         @default(now())
   listings       Listing[]
   locations      PickupLocation[]
+  matches        MatchRequest[]
 }
 
 // 生産者が登録する受渡場所。同じ1件を選んだ出品どうしを「同じ場所」と判定する。
@@ -282,6 +285,7 @@ model Listing {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   favorites        Favorite[]
+  matches          MatchRequest[]
 
   @@index([itemId, isPublished])
   @@index([producerId])
@@ -397,4 +401,68 @@ model GeoCache {
   key       String   @id
   value     Json
   createdAt DateTime @default(now())
+}
+
+// ---- マッチング（飲食店 → 生産者への依頼）とチャット ----
+// 依頼は生産者ごと（出品ごと）に作り、生産者が「承認」したときだけマッチング成立とする。
+// 成立しても、在庫の確保・注文の確定・決済・配送はしない（条件は当事者がチャットで相談する）。
+
+enum MatchStatus {
+  PENDING // 生産者の返事待ち
+  ACCEPTED // 生産者が承認した（マッチング成立。チャットを使える）
+  DECLINED // 生産者が辞退した
+  CANCELLED // 飲食店が取り下げた
+}
+
+model MatchRequest {
+  id               String        @id @default(cuid())
+  restaurantId     String
+  restaurant       Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  producerId       String
+  producer         Producer      @relation(fields: [producerId], references: [id], onDelete: Cascade)
+  // 依頼のもとになった出品。出品が削除されても、依頼とチャットは残す
+  listingId        String?
+  listing          Listing?      @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  // 依頼した時点の内容（あとで出品が変わっても、何を頼んだかが分かるように写しておく）
+  itemName         String
+  variety          String?
+  quantity         Decimal       @db.Decimal(10, 3)
+  unit             Unit
+  unitPriceTaxIncl Int
+  pickupStart      DateTime
+  pickupEnd        DateTime
+  locationName     String
+  message          String        @default("")
+  // 同じ仕入れ案からまとめて送った依頼の目印
+  groupId          String?
+  status           MatchStatus   @default(PENDING)
+  declineReason    String?
+  // デモデータ（お試し用）の出品への依頼
+  isDemo           Boolean       @default(false)
+  createdAt        DateTime      @default(now())
+  respondedAt      DateTime?
+  // 新着メッセージの判定に使う、それぞれが最後に開いた日時
+  restaurantReadAt DateTime?
+  producerReadAt   DateTime?
+  messages         ChatMessage[]
+
+  @@index([restaurantId, createdAt])
+  @@index([producerId, status])
+}
+
+model ChatMessage {
+  id           String       @id @default(cuid())
+  matchId      String
+  match        MatchRequest @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  // 送った人（サーバーがログイン中の利用者から決める。退会しても会話は残す）
+  senderUserId String?
+  sender       User?        @relation(fields: [senderUserId], references: [id], onDelete: SetNull)
+  senderRole   Role
+  body         String
+  // 再送したときに二重に保存しないための、画面側で付ける番号
+  clientId     String
+  createdAt    DateTime     @default(now())
+
+  @@unique([matchId, clientId])
+  @@index([matchId, createdAt])
 }

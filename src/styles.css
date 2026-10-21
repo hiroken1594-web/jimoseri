@@ -300,6 +300,21 @@ strong {
   max-width: 100%;
 }
 
+/* スマホでメニューが6つになる飲食店の画面では、文字の間隔と外側の余白を詰めて、ラベルが切れないようにする */
+@media (max-width: 767px) {
+  .app-nav:has(> a:nth-child(6)) a {
+    margin-inline: 0;
+    letter-spacing: 0;
+    padding-inline: 0;
+  }
+}
+
+@media (max-width: 359px) {
+  .app-nav:has(> a:nth-child(6)) a {
+    font-size: 0.62rem;
+  }
+}
+
 .public-header {
   background: var(--white);
   border-bottom: 1px solid var(--line);
@@ -2505,4 +2520,260 @@ select.input {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+/* スタート画面：ログイン中の案内 */
+.start-signed-in {
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--white);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-card);
+}
+
+.start-signed-in p {
+  margin: 0 0 8px;
+}
+
+/* ---- マッチング（依頼）・チャット ---- */
+.app-nav a {
+  position: relative;
+}
+
+.nav-badge,
+.badge-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--error-700);
+  color: var(--white);
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.nav-badge {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+}
+
+.match-last {
+  margin: 0;
+  font-size: 0.88rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chat-head .page-title {
+  font-size: 1.3rem;
+  margin: 0;
+}
+
+.chat-head p {
+  margin: 4px 0 0;
+}
+
+.trade-guide {
+  border-radius: var(--radius);
+  background: var(--white);
+  border: 2px solid var(--leaf-600);
+  overflow: hidden;
+}
+
+.trade-guide-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 8px 14px;
+  border: none;
+  background: var(--leaf-50);
+  color: var(--leaf-700);
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trade-guide-toggle span {
+  flex: 1;
+}
+
+.trade-guide-body {
+  padding: 4px 14px 14px;
+}
+
+.trade-guide-body p {
+  margin: 8px 0;
+}
+
+.trade-guide-title {
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: var(--leaf-700);
+}
+
+.checklist {
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px 10px;
+  margin: 10px 0;
+  display: grid;
+  gap: 0;
+}
+
+.checklist legend {
+  font-weight: 800;
+  font-size: 0.9rem;
+  padding: 0 4px;
+}
+
+.trade-guide-caution {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: 0.85rem;
+  color: var(--warn-800);
+  background: var(--warn-100);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+}
+
+.trade-guide-caution svg {
+  flex: none;
+  margin-top: 4px;
+}
+
+.chat-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 120px;
+}
+
+.chat-day {
+  align-self: center;
+  font-size: 0.78rem;
+  color: var(--muted);
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 12px;
+}
+
+.chat-empty {
+  text-align: center;
+  padding: 16px 8px;
+}
+
+.bubble-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.bubble-row.is-mine {
+  align-items: flex-end;
+}
+
+.bubble {
+  max-width: 82%;
+  padding: 10px 14px;
+  border-radius: 18px 18px 18px 6px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.bubble-row.is-mine .bubble {
+  border-radius: 18px 18px 6px 18px;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--white);
+}
+
+.bubble-row.is-pending .bubble {
+  opacity: 0.75;
+}
+
+.bubble-time {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.bubble-failed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--error-700);
+}
+
+/* 入力欄は画面の下に固定（スマホでは下のタブの上） */
+.chat-input {
+  position: sticky;
+  bottom: calc(var(--tabbar-h) + 8px);
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: var(--white);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-card);
+}
+
+.chat-input textarea {
+  flex: 1;
+  resize: none;
+  min-height: var(--tap);
+}
+
+@media (min-width: 768px) {
+  .chat-input {
+    bottom: 8px;
+  }
+}
+
+.match-panel {
+  border: 2px solid var(--accent);
+}
+
+.match-pick {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.match-pick li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.match-pick li .check {
+  flex: 1;
+  min-width: 12em;
 }

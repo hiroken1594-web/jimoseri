@@ -347,8 +347,8 @@ function DeleteSection({ user }: { user: SessionUser }) {
       setBusy(false)
       return setError(authErrorMessage(authError))
     }
-    await logout().catch(() => undefined)
     navigate('/', { replace: true })
+    await logout().catch(() => undefined)
   }
   return (
     <details className="alternatives">
@@ -385,8 +385,9 @@ export function Account() {
       <button
         className="btn btn-large btn-block"
         onClick={async () => {
-          await logout().catch(() => undefined)
+          // 先にトップ（新しいスタート画面）へ移ってからログアウトする（ログインが必要な画面に残ると、ログイン画面へ飛ばされるため）
           navigate('/', { replace: true })
+          await logout().catch(() => undefined)
         }}
       >
         ログアウト
