@@ -1,8 +1,8 @@
-import { ClipboardList, Flag, Handshake, Heart, Layers, Map, MapPin, ShieldCheck, Sprout, Store, User, type LucideIcon } from 'lucide-react'
+import { Bell, ClipboardList, Flag, Handshake, Heart, Layers, Map, MapPin, ShieldCheck, Sprout, Store, User, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import type { Role } from '../../shared/dto.js'
-import { useMatchBadge } from '../lib/matches.js'
+import { useMatchBadge, useNotificationCount } from '../lib/matches.js'
 import { useSession } from '../session.js'
 
 const ROLE_LABEL: Record<Role, string> = { PRODUCER: '生産者', RESTAURANT: '飲食店', ADMIN: '運営者' }
@@ -59,9 +59,12 @@ export function Layout({ children, wide }: { children: ReactNode; wide?: boolean
   const { pathname } = useLocation()
   // 新着（相手からの未読メッセージ・返事が必要な依頼）の数をメニューに出す
   const badge = useMatchBadge(Boolean(user) && user?.role !== 'ADMIN')
+  const bell = useNotificationCount(Boolean(user) && user?.role !== 'ADMIN')
   if (!user) return null
   // 以前に登録した方で、郵便番号が未登録の場合はマイページでの入力をお願いする
   const needsAddress = user.role !== 'ADMIN' && !user.address.postalCode && pathname !== '/account'
+  // 電話番号が未登録の方にも、マイページでの登録をお願いする（ログインは止めない）
+  const needsPhone = user.role !== 'ADMIN' && !user.phone && pathname !== '/account'
   const RoleIcon = ROLE_ICON[user.role]
   return (
     <div className={`app has-tabbar ${ROLE_CLASS[user.role]}`}>
@@ -76,6 +79,12 @@ export function Layout({ children, wide }: { children: ReactNode; wide?: boolean
             {ROLE_LABEL[user.role]}
           </span>
           <span className="app-header-name">{user.orgName}</span>
+          {user.role !== 'ADMIN' && (
+            <Link to="/notifications" className="bell" aria-label={bell > 0 ? `お知らせ（未読${bell}件）` : 'お知らせ'}>
+              <Bell aria-hidden="true" />
+              {bell > 0 && <span className="nav-badge bell-badge">{bell > 99 ? '99+' : bell}</span>}
+            </Link>
+          )}
         </div>
       </header>
       <nav className="app-nav" aria-label="メニュー">
@@ -96,6 +105,12 @@ export function Layout({ children, wide }: { children: ReactNode; wide?: boolean
           <p className="info-banner">
             {user.role === 'RESTAURANT' ? 'お店の郵便番号・住所が未登録です。登録すると、地図でお店の近くから探せます。' : '所在地の郵便番号が未登録です（公開はされません）。'}
             <Link to="/account">マイページで入力する</Link>
+          </p>
+        )}
+        {needsPhone && (
+          <p className="info-banner">
+            電話番号が未登録です（他の利用者には公開されません）。取引の連絡に使えるよう登録してください。
+            <Link to="/account">マイページで登録する</Link>
           </p>
         )}
         {children}

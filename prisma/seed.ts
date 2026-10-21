@@ -58,6 +58,21 @@ for (const a of ACCOUNTS.filter((x) => x.role === 'PRODUCER')) {
   })
   producerIds[a.username] = producer.id
 }
+
+// 電話番号（テスト用の架空の番号）と、取引相手への表示の設定
+//  restaurant1：マッチング成立後の相手に表示／restaurant2：表示しない・生産者からの提案を受け取る
+//  farm_a：相談中の相手にも表示／farm_b：表示しない／farm_c：未登録（追加登録のお願いを試せる）
+const PHONES: Record<string, { phone: string; phoneShare: 'NONE' | 'MATCHED' | 'ANYTIME' }> = {
+  restaurant1: { phone: '09000000001', phoneShare: 'MATCHED' },
+  restaurant2: { phone: '0600000002', phoneShare: 'NONE' },
+  farm_a: { phone: '08000000003', phoneShare: 'ANYTIME' },
+  farm_b: { phone: '07000000004', phoneShare: 'NONE' },
+}
+for (const [username, data] of Object.entries(PHONES)) await prisma.user.update({ where: { username }, data })
+for (const username of ['restaurant1', 'restaurant2']) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { username } })
+  await prisma.restaurant.create({ data: { userId: user.id, name: ACCOUNTS.find((x) => x.username === username)!.orgName, area: ACCOUNTS.find((x) => x.username === username)!.area, acceptProposals: username === 'restaurant2' } })
+}
 await prisma.producer.update({
   where: { id: producerIds.farm_a },
   data: { publicPhone: '090-0000-0000', showPhone: true, publicEmail: 'farm-a-public@example.invalid', showEmail: false, contactNote: '平日9〜17時（テスト）' },

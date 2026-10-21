@@ -24,6 +24,8 @@ const ProducerLocations = lazy(() => import('./pages/ProducerLocations.js').then
 const RestaurantDiscover = lazy(() => import('./pages/RestaurantDiscover.js').then((m) => ({ default: m.RestaurantDiscover })))
 const RestaurantFavorites = lazy(() => import('./pages/RestaurantFavorites.js').then((m) => ({ default: m.RestaurantFavorites })))
 const Matches = lazy(() => import('./pages/Matches.js').then((m) => ({ default: m.Matches })))
+const Notifications = lazy(() => import('./pages/Notifications.js').then((m) => ({ default: m.Notifications })))
+const ProducerPropose = lazy(() => import('./pages/ProducerPropose.js').then((m) => ({ default: m.ProducerPropose })))
 const Chat = lazy(() => import('./pages/Chat.js').then((m) => ({ default: m.Chat })))
 const AdminReports = lazy(() => import('./pages/AdminReports.js').then((m) => ({ default: m.AdminReports })))
 
@@ -61,6 +63,8 @@ export function App() {
       {/* マッチングの依頼とチャット（飲食店・生産者。運営者は閲覧のみ。実際の権限はサーバーが確認する） */}
       <Route path="/matches" element={<Require>{lazyPage(<Matches />)}</Require>} />
       <Route path="/matches/:id" element={<Require>{lazyPage(<Chat />)}</Require>} />
+      <Route path="/notifications" element={<Require>{lazyPage(<Notifications />)}</Require>} />
+      <Route path="/producer/propose" element={<Require role="PRODUCER">{lazyPage(<ProducerPropose />)}</Require>} />
       <Route path="/restaurant" element={<Require role="RESTAURANT"><RestaurantInput /></Require>} />
       <Route path="/restaurant/confirm" element={<Require role="RESTAURANT"><RestaurantConfirm /></Require>} />
       <Route path="/restaurant/plan" element={<Require role="RESTAURANT"><RestaurantPlan /></Require>} />

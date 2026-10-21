@@ -8,7 +8,7 @@ import { EmptyState, Field, Loading, Notice, PageTitle } from '../components/ui.
 
 const STATUS_LABEL: Record<ReportStatus, string> = { OPEN: '未対応', IN_REVIEW: '確認中', RESOLVED: '対応済み', REJECTED: '却下' }
 const STATUS_CLASS: Record<ReportStatus, string> = { OPEN: 'chip chip-warn', IN_REVIEW: 'chip', RESOLVED: 'chip chip-live', REJECTED: 'chip chip-off' }
-const TARGET_LABEL = { LISTING: '出品', PRODUCER: '生産者', RESTAURANT: '飲食店' } as const
+const TARGET_LABEL = { LISTING: '出品', PRODUCER: '生産者', RESTAURANT: '飲食店', REVIEW: 'レビュー' } as const
 const STATE_LABEL = { ACTIVE: '公開中', SUSPENDED: '停止中', DELETED: '削除済み' } as const
 
 function ReportCard({ report, onChanged }: { report: ReportItem; onChanged: () => Promise<void> }) {

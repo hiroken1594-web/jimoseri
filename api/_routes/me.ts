@@ -19,7 +19,17 @@ export const PATCH = handle(async (request) => {
   const body = await readBody(request, profileSchema)
   const prisma = getPrisma()
 
-  await prisma.user.update({ where: { id: actor.user.id }, data: { name: body.orgName, orgName: body.orgName, area: body.area } })
+  await prisma.user.update({
+    where: { id: actor.user.id },
+    // 電話番号は数字だけにそろえた値で保存する。変えた番号は未確認（SMS などでの確認はまだない）
+    data: {
+      name: body.orgName,
+      orgName: body.orgName,
+      area: body.area,
+      ...(body.phone !== undefined && body.phone !== actor.user.phone?.replace(/-/g, '') ? { phone: body.phone, phoneVerified: false } : {}),
+      ...(body.phoneShare !== undefined ? { phoneShare: body.phoneShare } : {}),
+    },
+  })
   // 住所は任意。送られてきた項目だけを更新する（空欄は削除）
   const zip = body.postalCode === undefined ? undefined : body.postalCode ? normalizeZip(body.postalCode) : null
   const address = {
@@ -51,6 +61,7 @@ export const PATCH = handle(async (request) => {
         area: body.area,
         ...address,
         ...(body.storePosition === undefined ? {} : { latitude: body.storePosition?.lat ?? null, longitude: body.storePosition?.lng ?? null }),
+        ...(body.acceptProposals === undefined ? {} : { acceptProposals: body.acceptProposals }),
       },
     })
   }

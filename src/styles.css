@@ -2777,3 +2777,301 @@ select.input {
   flex: 1;
   min-width: 12em;
 }
+
+/* ---- お知らせ（ベル） ---- */
+.bell {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  flex: none;
+  margin-left: 4px;
+  border-radius: 999px;
+  color: var(--ink);
+}
+
+.bell:hover {
+  background: var(--accent-soft);
+}
+
+.bell svg {
+  width: 24px;
+  height: 24px;
+}
+
+.bell-badge {
+  top: 2px;
+  right: 0;
+}
+
+.notice-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.notice-item a {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--white);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.notice-item.is-unread a {
+  border-left: 6px solid var(--accent);
+  background: var(--accent-soft);
+}
+
+.notice-item .notice-title {
+  font-weight: 800;
+}
+
+.notice-item time {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.chip-done {
+  background: var(--indigo-100);
+  color: var(--indigo-700);
+}
+
+.rating-big {
+  font-size: 1.3rem;
+  font-weight: 900;
+  margin: 0;
+}
+
+.review-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.review-item {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+.review-item p {
+  margin: 0 0 4px;
+}
+
+/* 選択肢のカード（飲食店の選択など） */
+.choice-list {
+  display: grid;
+  gap: 8px;
+}
+
+.choice-card {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 14px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--white);
+  cursor: pointer;
+}
+
+.choice-card input {
+  margin-top: 6px;
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+}
+
+.choice-card.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.delivery-fields {
+  display: grid;
+  gap: 12px;
+}
+
+/* ---- 取引チャット（相手・状態・電話のヘッダー、取引の記録、提案カード） ---- */
+.chat-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--white);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-card);
+}
+
+.chat-head-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.phone-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  border: 2px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  cursor: pointer;
+}
+
+.phone-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+.respond-card {
+  border: 2px solid var(--orange-400);
+  background: var(--orange-100);
+}
+
+.respond-card p {
+  margin: 0;
+}
+
+.chat-system {
+  align-self: center;
+  max-width: 92%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--indigo-100);
+  color: var(--indigo-700);
+  font-size: 0.86rem;
+  text-align: center;
+}
+
+.chat-system time {
+  font-size: 0.72rem;
+  opacity: 0.8;
+}
+
+.proposal-card {
+  max-width: 92%;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--white);
+  border: 2px solid var(--accent);
+}
+
+.proposal-card.is-superseded,
+.proposal-card.is-rejected {
+  border-color: var(--line);
+  opacity: 0.8;
+}
+
+.proposal-head {
+  margin: 0 0 6px;
+  font-weight: 800;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.proposal-card ul {
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: 0.92rem;
+}
+
+.terms-card .plan-summary {
+  font-size: 0.92rem;
+}
+
+.terms-preview {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--leaf-50);
+}
+
+.trade-steps {
+  margin: 8px 0;
+  padding-left: 1.4em;
+  display: grid;
+  gap: 2px;
+}
+
+.chat-bottom {
+  position: sticky;
+  bottom: calc(var(--tabbar-h) + 8px);
+  display: grid;
+  gap: 6px;
+  padding: 6px;
+  border-radius: var(--radius);
+  background: rgb(255 249 241 / 0.96);
+  box-shadow: 0 -4px 14px rgb(51 51 51 / 0.08);
+}
+
+.chat-bottom .chat-input {
+  position: static;
+}
+
+.chat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.chat-actions:empty {
+  display: none;
+}
+
+.star-field {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.star-field legend {
+  font-weight: 800;
+  margin-bottom: 2px;
+}
+
+.star-pick {
+  display: flex;
+  gap: 4px;
+}
+
+.star-pick button {
+  min-width: var(--tap);
+  min-height: var(--tap);
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--white);
+  color: var(--line-strong);
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+.star-pick button.is-on {
+  color: var(--orange-400);
+  border-color: var(--orange-400);
+}
+
+@media (min-width: 768px) {
+  .chat-bottom {
+    bottom: 8px;
+  }
+}

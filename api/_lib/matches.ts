@@ -5,6 +5,7 @@ import type { Prisma } from '../../generated/prisma/client.js'
 import type { Actor } from './auth.js'
 import { HttpError } from './http.js'
 import { getPrisma } from './prisma.js'
+import { ratingSummary } from './reviews.js'
 
 export const matchInclude = { restaurant: true, producer: true } satisfies Prisma.MatchRequestInclude
 export type MatchRow = Prisma.MatchRequestGetPayload<{ include: typeof matchInclude }>
@@ -31,14 +32,13 @@ export async function loadMatchFor(actor: Actor, id: string | null): Promise<{ r
 
 /** 相手からの未読の数と、最後のメッセージ */
 async function chatSummary(row: MatchRow, viewer: MatchDto['viewer']) {
-  if (row.status !== 'ACCEPTED') return { unread: 0, lastMessage: null }
   const prisma = getPrisma()
   const readAt = viewer === 'RESTAURANT' ? row.restaurantReadAt : viewer === 'PRODUCER' ? row.producerReadAt : new Date()
   const otherRole = viewer === 'RESTAURANT' ? 'PRODUCER' : 'RESTAURANT'
   const [unread, last] = await Promise.all([
     viewer === 'ADMIN'
       ? Promise.resolve(0)
-      : prisma.chatMessage.count({ where: { matchId: row.id, senderRole: otherRole, ...(readAt ? { createdAt: { gt: readAt } } : {}) } }),
+      : prisma.chatMessage.count({ where: { matchId: row.id, senderRole: otherRole, kind: { in: ['TEXT', 'PROPOSAL'] }, ...(readAt ? { createdAt: { gt: readAt } } : {}) } }),
     prisma.chatMessage.findFirst({ where: { matchId: row.id }, orderBy: { createdAt: 'desc' } }),
   ])
   return {
@@ -69,6 +69,28 @@ export async function toMatchDto(row: MatchRow, viewer: MatchDto['viewer']): Pro
     groupId: row.groupId,
     isDemo: row.isDemo,
     viewer,
+    initiator: row.initiator === 'PRODUCER' ? 'PRODUCER' : 'RESTAURANT',
+    deliveryMethod: row.deliveryMethod,
+    deliveryPlace: row.deliveryPlace || row.locationName,
+    shippingFeeYen: row.shippingFeeYen,
+    shippingPayer: row.shippingPayer,
+    termsNote: row.termsNote,
+    agreed: { restaurant: Boolean(row.restaurantAgreedAt), producer: Boolean(row.producerAgreedAt) },
+    completed: { restaurant: Boolean(row.restaurantCompletedAt), producer: Boolean(row.producerCompletedAt) },
+    // 相手の評価（運営者には出さない）
+    partnerRating:
+      viewer === 'RESTAURANT' ? await ratingSummary('PRODUCER', row.producerId) : viewer === 'PRODUCER' ? await ratingSummary('RESTAURANT', row.restaurantId) : null,
     ...(await chatSummary(row, viewer)),
   }
 }
+
+/** 提案を受けた側（返事をする側） */
+export const responderOf = (row: { initiator: string }): 'RESTAURANT' | 'PRODUCER' => (row.initiator === 'PRODUCER' ? 'RESTAURANT' : 'PRODUCER')
+
+/** 取引相手の利用者 ID（通知の宛先） */
+export function partnerUserId(row: MatchRow, viewer: 'RESTAURANT' | 'PRODUCER'): string {
+  return viewer === 'RESTAURANT' ? row.producer.userId : row.restaurant.userId
+}
+
+/** チャットを開けるか（辞退・取り下げの後は読むだけ） */
+export const chatWritable = (status: string) => status === 'PENDING' || status === 'ACCEPTED' || status === 'AGREED' || status === 'COMPLETED'

@@ -12,6 +12,7 @@ import { ReportButton } from '../components/ReportButton.js'
 import { EmptyState, Field, itemEmoji, Loading, Notice } from '../components/ui.js'
 import { isDemoMode, setDemoMode } from '../lib/demoMode.js'
 import { emptyDemandForm, parseNumber, saveDraft } from '../lib/forms.js'
+import { ratingText } from '../lib/matches.js'
 import { setFavorite } from '../lib/useMarket.js'
 
 export function ListingDetail() {
@@ -168,6 +169,7 @@ export function ListingDetail() {
         <h2 className="card-title">生産者</h2>
         <p>
           <strong>{listing.producerName}</strong>（{listing.producerArea}）
+          <span className="muted"> {ratingText(listing.producerRating)}</span>
         </p>
         {listing.contact ? (
           <dl className="meta">
@@ -220,6 +222,7 @@ export function ListingDetail() {
               itemName: listing.itemName,
               quantityMilli: Math.min(listing.quantityMilli, Math.round((parseNumber(requestQty) ?? listing.quantityMilli / 1000) * 1000)),
               unit: listing.unit,
+              locationName: listing.location.name,
               pickupStartMs: listing.pickupStartMs,
               pickupEndMs: listing.pickupEndMs,
             },

@@ -67,22 +67,30 @@ model User {
   updatedAt       DateTime @updatedAt
 
   // 役割は登録時にサーバーが確定し、本人は変更できない。ADMIN は管理用コマンドでのみ付与する。
-  role       Role?
+  role          Role?
   // 登録フォームの入力値（役割の希望・店舗名／農園名・地域）。確定後は参照しない。
-  signupRole String?
-  orgName    String?
-  area       String?
+  signupRole    String?
+  orgName       String?
+  area          String?
   // 運営者による利用停止
-  suspended  Boolean @default(false)
+  suspended     Boolean    @default(false)
+  // 電話番号（数字だけにそろえて保存。他の利用者には原則として公開しない）
+  phone         String?
+  // SMS などで本人の番号と確認できたか（いまは確認の仕組みがないため、常に false）
+  phoneVerified Boolean    @default(false)
+  // 取引相手に電話番号を見せてよい範囲（本人の同意。初期値は見せない）
+  phoneShare    PhoneShare @default(NONE)
 
-  sessions     Session[]
-  accounts     Account[]
-  recoveryCode RecoveryCode?
-  producer     Producer?
-  restaurant   Restaurant?
-  aiUsages     AiUsage[]
-  reports      Report[]
-  chatMessages ChatMessage[]
+  sessions      Session[]
+  accounts      Account[]
+  recoveryCode  RecoveryCode?
+  producer      Producer?
+  restaurant    Restaurant?
+  aiUsages      AiUsage[]
+  reports       Report[]
+  chatMessages  ChatMessage[]
+  notifications Notification[]
+  reviews       Review[]
 
   @@map("user")
 }
@@ -165,23 +173,28 @@ model RateLimit {
 // ---- 業務データ ----
 
 model Restaurant {
-  id          String         @id @default(cuid())
-  userId      String         @unique
-  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name        String
-  area        String
+  id              String          @id @default(cuid())
+  userId          String          @unique
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  area            String
   // 住所（任意・本人と運営者だけが見る。他の利用者には公開しない）
-  postalCode  String?
-  prefecture  String?
-  city        String?
-  town        String?
-  addressLine String?
+  postalCode      String?
+  prefecture      String?
+  city            String?
+  town            String?
+  addressLine     String?
   // お店の位置（地図検索の中心の初期値）。郵便番号・住所から候補を出し、本人が地図で確かめて保存する。非公開。
-  latitude    Float?
-  longitude   Float?
-  demands     Demand[]
-  favorites   Favorite[]
-  matches     MatchRequest[]
+  latitude        Float?
+  longitude       Float?
+  // 生産者からの取引提案を受け取るか（初期値は受け取らない）。受け取る飲食店だけが、生産者の提案先の一覧に出る
+  acceptProposals Boolean         @default(false)
+  // デモデータ（お試し用）の飲食店。デモの生産者は、デモの飲食店にだけ提案できる
+  isDemo          Boolean         @default(false)
+  demands         Demand[]
+  favorites       Favorite[]
+  matches         MatchRequest[]
+  blocks          ProposalBlock[]
 }
 
 model Producer {
@@ -210,6 +223,7 @@ model Producer {
   listings       Listing[]
   locations      PickupLocation[]
   matches        MatchRequest[]
+  blockedBy      ProposalBlock[]
 }
 
 // 生産者が登録する受渡場所。同じ1件を選んだ出品どうしを「同じ場所」と判定する。
@@ -346,6 +360,14 @@ enum ReportTarget {
   LISTING
   PRODUCER
   RESTAURANT
+  REVIEW
+}
+
+// 電話番号を取引相手に見せる範囲（本人が選ぶ）
+enum PhoneShare {
+  NONE // 見せない
+  MATCHED // マッチング成立後の取引相手にだけ
+  ANYTIME // 相談中（承認前）の取引相手にも
 }
 
 enum ReportReason {
@@ -408,43 +430,75 @@ model GeoCache {
 // 成立しても、在庫の確保・注文の確定・決済・配送はしない（条件は当事者がチャットで相談する）。
 
 enum MatchStatus {
-  PENDING // 生産者の返事待ち
-  ACCEPTED // 生産者が承認した（マッチング成立。チャットを使える）
-  DECLINED // 生産者が辞退した
-  CANCELLED // 飲食店が取り下げた
+  PENDING // 相談中（提案を受けた側の返事待ち。チャットは使える）
+  ACCEPTED // マッチング成立（取引準備中。条件を調整する）
+  AGREED // 取引条件に双方が合意
+  COMPLETED // 双方が取引完了を確認
+  DECLINED // 提案を受けた側が辞退した
+  CANCELLED // 提案した側が取り下げた
+}
+
+// 受渡の方法
+enum DeliveryMethod {
+  PICKUP // 生産者の指定場所で受け取る
+  DELIVERY // 飲食店の指定場所に配送する
+  DISCUSS // 双方で相談して決める
+}
+
+// 送料の負担
+enum ShippingPayer {
+  UNDECIDED
+  RESTAURANT
+  PRODUCER
 }
 
 model MatchRequest {
-  id               String        @id @default(cuid())
-  restaurantId     String
-  restaurant       Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  producerId       String
-  producer         Producer      @relation(fields: [producerId], references: [id], onDelete: Cascade)
+  id                    String          @id @default(cuid())
+  restaurantId          String
+  restaurant            Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  producerId            String
+  producer              Producer        @relation(fields: [producerId], references: [id], onDelete: Cascade)
   // 依頼のもとになった出品。出品が削除されても、依頼とチャットは残す
-  listingId        String?
-  listing          Listing?      @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  listingId             String?
+  listing               Listing?        @relation(fields: [listingId], references: [id], onDelete: SetNull)
   // 依頼した時点の内容（あとで出品が変わっても、何を頼んだかが分かるように写しておく）
-  itemName         String
-  variety          String?
-  quantity         Decimal       @db.Decimal(10, 3)
-  unit             Unit
-  unitPriceTaxIncl Int
-  pickupStart      DateTime
-  pickupEnd        DateTime
-  locationName     String
-  message          String        @default("")
+  itemName              String
+  variety               String?
+  quantity              Decimal         @db.Decimal(10, 3)
+  unit                  Unit
+  unitPriceTaxIncl      Int
+  pickupStart           DateTime
+  pickupEnd             DateTime
+  locationName          String
+  message               String          @default("")
+  // 提案した側（飲食店からの依頼か、生産者からの提案か）。返事をするのは反対側
+  initiator             Role            @default(RESTAURANT)
+  // 取引条件（相談で変わる。送料が null のときは「未確定」）
+  deliveryMethod        DeliveryMethod  @default(PICKUP)
+  deliveryPlace         String          @default("")
+  shippingFeeYen        Int?
+  shippingPayer         ShippingPayer   @default(UNDECIDED)
+  termsNote             String          @default("")
+  // いまの条件への合意（条件が変わると取り消す）と、取引完了の確認
+  restaurantAgreedAt    DateTime?
+  producerAgreedAt      DateTime?
+  restaurantCompletedAt DateTime?
+  producerCompletedAt   DateTime?
   // 同じ仕入れ案からまとめて送った依頼の目印
-  groupId          String?
-  status           MatchStatus   @default(PENDING)
-  declineReason    String?
+  groupId               String?
+  status                MatchStatus     @default(PENDING)
+  declineReason         String?
   // デモデータ（お試し用）の出品への依頼
-  isDemo           Boolean       @default(false)
-  createdAt        DateTime      @default(now())
-  respondedAt      DateTime?
+  isDemo                Boolean         @default(false)
+  createdAt             DateTime        @default(now())
+  respondedAt           DateTime?
   // 新着メッセージの判定に使う、それぞれが最後に開いた日時
-  restaurantReadAt DateTime?
-  producerReadAt   DateTime?
-  messages         ChatMessage[]
+  restaurantReadAt      DateTime?
+  producerReadAt        DateTime?
+  messages              ChatMessage[]
+  proposals             TermsProposal[]
+  reviews               Review[]
+  notifications         Notification[]
 
   @@index([restaurantId, createdAt])
   @@index([producerId, status])
@@ -458,6 +512,9 @@ model ChatMessage {
   senderUserId String?
   sender       User?        @relation(fields: [senderUserId], references: [id], onDelete: SetNull)
   senderRole   Role
+  // 種類：TEXT（メッセージ）・SYSTEM（承認・合意などの記録）・PROPOSAL（条件の提案カード）
+  kind         ChatKind     @default(TEXT)
+  proposalId   String?
   body         String
   // 再送したときに二重に保存しないための、画面側で付ける番号
   clientId     String
@@ -465,4 +522,104 @@ model ChatMessage {
 
   @@unique([matchId, clientId])
   @@index([matchId, createdAt])
+}
+
+enum ChatKind {
+  TEXT
+  SYSTEM
+  PROPOSAL
+}
+
+// 取引条件の変更提案（マッチング成立後に、どちらからでも出せる）。相手が承諾すると取引条件になり、双方の合意になる
+enum ProposalStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  SUPERSEDED // 新しい提案が出たため無効
+}
+
+model TermsProposal {
+  id               String         @id @default(cuid())
+  matchId          String
+  match            MatchRequest   @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  proposerRole     Role
+  quantity         Decimal        @db.Decimal(10, 3)
+  unitPriceTaxIncl Int
+  deliveryMethod   DeliveryMethod
+  deliveryPlace    String         @default("")
+  pickupStart      DateTime
+  pickupEnd        DateTime
+  shippingFeeYen   Int?
+  shippingPayer    ShippingPayer  @default(UNDECIDED)
+  note             String         @default("")
+  status           ProposalStatus @default(PENDING)
+  createdAt        DateTime       @default(now())
+  respondedAt      DateTime?
+
+  @@index([matchId, createdAt])
+}
+
+// 飲食店が「この生産者からの提案を受け取らない」とした組み合わせ
+model ProposalBlock {
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  producerId   String
+  producer     Producer   @relation(fields: [producerId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@id([restaurantId, producerId])
+}
+
+// アプリ内の通知（DB に保存し、既読・未読を管理する）
+enum NotificationKind {
+  PROPOSAL_RECEIVED
+  PROPOSAL_ACCEPTED
+  PROPOSAL_DECLINED
+  NEW_MESSAGE
+  TERMS_PROPOSED
+  TERMS_AGREED
+  COMPLETION_REQUESTED
+  COMPLETED
+  REVIEW_REQUESTED
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      NotificationKind
+  title     String
+  body      String           @default("")
+  // 押したときに開く画面（アプリ内のパス）
+  link      String
+  matchId   String?
+  match     MatchRequest?    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// 取引完了後の相互レビュー（1取引につき1人1回）
+model Review {
+  id             String       @id @default(cuid())
+  matchId        String
+  match          MatchRequest @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  reviewerRole   Role
+  reviewerUserId String?
+  reviewer       User?        @relation(fields: [reviewerUserId], references: [id], onDelete: SetNull)
+  // 評価される側（生産者または飲食店の ID）
+  targetRole     Role
+  targetId       String
+  rating         Int
+  satisfaction   Int
+  politeness     Int
+  smoothness     Int
+  comment        String       @default("")
+  // 運営者による非公開
+  hidden         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  @@unique([matchId, reviewerRole])
+  @@index([targetRole, targetId])
 }

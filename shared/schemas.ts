@@ -1,5 +1,6 @@
 // API の入力検証（サーバー側で必ず通す。画面側の検証は補助）。
 import { z } from 'zod'
+import { normalizePhone } from './phone.js'
 import { isValidUsername, MAX_TEXT_LENGTH, USERNAME_MAX, USERNAME_MIN } from './limits.js'
 
 export const unitSchema = z.enum(['KG', 'PIECE', 'BUNCH', 'BAG'])
@@ -8,6 +9,16 @@ export const irregularReasonSchema = z.enum(['SHAPE', 'SIZE', 'SURPLUS', 'OTHER'
 export const timeModeSchema = z.enum(['DEADLINE', 'EXACT'])
 
 const id = z.string().min(1).max(40)
+
+/** 日本国内の電話番号（携帯・固定）。数字だけにそろえた値になる */
+export const phoneField = z
+  .string({ error: '電話番号を入力してください' })
+  .trim()
+  .min(1, '電話番号を入力してください')
+  .max(20, '電話番号が長すぎます')
+  .refine((v) => normalizePhone(v) !== null, '電話番号の形式を確認してください（例：090-1234-5678、06-1234-5678）')
+  .transform((v) => normalizePhone(v)!)
+export const phoneShareSchema = z.enum(['NONE', 'MATCHED', 'ANYTIME'])
 const twoDecimals = (n: number) => Math.abs(n * 100 - Math.round(n * 100)) < 1e-6
 const quantity = z
   .number({ error: '数量を数字で入力してください' })
@@ -78,6 +89,9 @@ export const signupSchema = z.object({
     .string({ error: '郵便番号を入力してください' })
     .trim()
     .regex(/^\d{3}-?\d{4}$/, '郵便番号は7桁の数字で入力してください'),
+  // 電話番号（必須・他の利用者には原則として非公開）と、取引相手に見せる範囲（初期値は見せない）
+  phone: phoneField,
+  phoneShare: phoneShareSchema.optional(),
   inviteCode: z.string().trim().max(100).optional(),
   // 人には見えない入力欄（自動登録の検出用）
   website: z.string().max(200).optional(),
@@ -95,6 +109,11 @@ export const profileSchema = z
       .object({ lat: z.number().min(20).max(46), lng: z.number().min(122).max(154) }, { error: '地図で位置を指定してください' })
       .nullable()
       .optional(),
+    // 電話番号（変更できる。空にはできない）と、取引相手に見せる範囲
+    phone: phoneField.optional(),
+    phoneShare: phoneShareSchema.optional(),
+    // 飲食店のみ：生産者からの取引提案を受け取るか
+    acceptProposals: z.boolean().optional(),
     // 以下は生産者のみ。公開用の連絡先（任意）
     publicPhone: optionalText('電話番号', 20).optional(),
     showPhone: z.boolean().optional(),
@@ -312,7 +331,7 @@ export const favoriteSchema = z.object({ listingId: z.string().min(1).max(40) })
 export const REPORT_REASONS = ['FALSE_INFO', 'INAPPROPRIATE', 'NUISANCE', 'FRAUD', 'OTHER'] as const
 export const reportCreateSchema = z
   .object({
-    targetType: z.enum(['LISTING', 'PRODUCER', 'RESTAURANT']),
+    targetType: z.enum(['LISTING', 'PRODUCER', 'RESTAURANT', 'REVIEW']),
     targetId: z.string().min(1).max(40),
     reason: z.enum(REPORT_REASONS, { error: '通報の理由を選んでください' }),
     detail: z.string().trim().max(500, '詳細は500文字以内で入力してください').optional(),
@@ -335,6 +354,18 @@ export type ReportUpdateInput = z.infer<typeof reportUpdateSchema>
 
 // ---- マッチング（飲食店 → 生産者への依頼）・チャット ----
 
+const deliveryMethodSchema = z.enum(['PICKUP', 'DELIVERY', 'DISCUSS'])
+const shippingPayerSchema = z.enum(['UNDECIDED', 'RESTAURANT', 'PRODUCER'])
+const yen = (label: string) =>
+  z.number({ error: `${label}を数字で入力してください` }).int(`${label}は1円単位で入力してください`).min(0, `${label}は0円以上にしてください`).max(10_000_000, `${label}が大きすぎます`)
+/** 受渡方法と送料（送料が null のときは「未確定」） */
+const deliveryShape = {
+  deliveryMethod: deliveryMethodSchema.optional(),
+  deliveryPlace: z.string().trim().max(100, '受渡場所は100文字以内で入力してください').optional(),
+  shippingFeeYen: yen('送料').nullable().optional(),
+  shippingPayer: shippingPayerSchema.optional(),
+}
+
 /** 飲食店が生産者に依頼を送る。1回に最大3件（仕入れ案の農家ごと、または出品の詳細から1件） */
 export const matchCreateSchema = z.object({
   lines: z
@@ -351,11 +382,24 @@ export const matchCreateSchema = z.object({
     .max(3, '一度に依頼できるのは3件までです'),
   message: z.string().trim().max(500, 'ひとことは500文字以内で入力してください').optional(),
   demoMode: z.boolean().optional(),
+  ...deliveryShape,
+})
+
+/** 生産者から飲食店への取引提案（提案の受け取りを許可している飲食店にだけ） */
+export const producerProposalSchema = z.object({
+  restaurantId: id,
+  listingId: id,
+  quantity: z.number({ error: '数量を数字で入力してください' }).positive('数量は0より大きくしてください').max(100_000, '数量が大きすぎます'),
+  pickupStartMs: z.number().int().optional(),
+  pickupEndMs: z.number().int().optional(),
+  message: z.string().trim().max(500, 'ひとことは500文字以内で入力してください').optional(),
+  ...deliveryShape,
 })
 
 /** 依頼への返事：生産者は承認・辞退、飲食店は取り下げ */
 export const matchRespondSchema = z.object({
-  action: z.enum(['accept', 'decline', 'cancel']),
+  // accept・decline：提案を受けた側／cancel：提案した側／agree：いまの条件に合意／complete：取引完了を確認／block：生産者からの提案を受け取らない（飲食店）
+  action: z.enum(['accept', 'decline', 'cancel', 'agree', 'complete', 'block']),
   reason: z.string().trim().max(200, '理由は200文字以内で入力してください').optional(),
 })
 
@@ -367,3 +411,39 @@ export const chatSendSchema = z.object({
 })
 
 export type MatchCreateInput = z.infer<typeof matchCreateSchema>
+
+/** 取引条件の変更提案（マッチング成立後、どちらからでも） */
+export const termsProposalSchema = z.object({
+  matchId: id,
+  quantity: z.number({ error: '数量を数字で入力してください' }).positive('数量は0より大きくしてください').max(100_000, '数量が大きすぎます'),
+  unitPriceYen: yen('単価').min(1, '単価は1円以上にしてください'),
+  deliveryMethod: deliveryMethodSchema,
+  deliveryPlace: z.string().trim().max(100, '受渡場所は100文字以内で入力してください'),
+  date: dateString,
+  startTime: timeString,
+  endTime: timeString,
+  shippingFeeYen: yen('送料').nullable(),
+  shippingPayer: shippingPayerSchema,
+  note: z.string().trim().max(500, '備考は500文字以内で入力してください').optional(),
+}).superRefine((v, ctx) => {
+  if (v.endTime <= v.startTime) ctx.addIssue({ code: 'custom', path: ['endTime'], message: '終了時刻は開始時刻より後にしてください' })
+})
+
+export const proposalRespondSchema = z.object({ action: z.enum(['accept', 'reject']) })
+
+const score = (label: string) => z.number({ error: `${label}を選んでください` }).int().min(1, `${label}を選んでください`).max(5)
+/** 取引完了後の相互レビュー */
+export const reviewSchema = z.object({
+  matchId: id,
+  rating: score('総合評価'),
+  satisfaction: score('取引の満足度'),
+  politeness: score('対応の丁寧さ'),
+  smoothness: score('受渡のスムーズさ'),
+  comment: z.string().trim().max(500, 'コメントは500文字以内で入力してください').optional(),
+})
+
+/** 通知を既読にする（ids を指定、または all で全部） */
+export const notificationReadSchema = z.object({ ids: z.array(id).max(200).optional(), all: z.boolean().optional() })
+
+export type TermsProposalInput = z.infer<typeof termsProposalSchema>
+export type ProducerProposalInput = z.infer<typeof producerProposalSchema>

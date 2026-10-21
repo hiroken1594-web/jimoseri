@@ -12,7 +12,7 @@ export const REPORT_REASON_LABEL: Record<ReportReason, string> = {
   OTHER: 'その他',
 }
 
-const TARGET_LABEL: Record<ReportTargetType, string> = { LISTING: 'この出品', PRODUCER: 'この生産者', RESTAURANT: 'この飲食店' }
+const TARGET_LABEL: Record<ReportTargetType, string> = { LISTING: 'この出品', PRODUCER: 'この生産者', RESTAURANT: 'この飲食店', REVIEW: 'このレビュー' }
 
 /**
  * 通報メニュー。理由の選択 → 内容の確認 → 送信 → 受付完了 の順に進む。

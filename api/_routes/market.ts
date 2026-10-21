@@ -12,6 +12,7 @@ import { requireActor } from '../_lib/auth.js'
 import { handle, HttpError, json, readBody } from '../_lib/http.js'
 import { stillAvailable, toMarketListing, windowOf } from '../_lib/market-listing.js'
 import { getPrisma } from '../_lib/prisma.js'
+import { ratingSummary } from '../_lib/reviews.js'
 import { requireAllowed } from '../_lib/throttle.js'
 
 const include = { item: true, producer: { include: { user: true } }, pickupLocation: true } satisfies Prisma.ListingInclude
@@ -186,6 +187,7 @@ export const GET = handle(async (request) => {
   const detail: ListingDetail = {
     ...toMarketListing(row, await favoriteIds(actor.restaurantId!), nowMs),
     producerArea: p.area,
+    producerRating: await ratingSummary('PRODUCER', p.id),
     contact: contact.phone || contact.email ? contact : null,
     location: {
       id: loc.id,

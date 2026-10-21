@@ -75,6 +75,8 @@ export const POST = handle(async (request) => {
   } else {
     await prisma.restaurant.upsert({ where: { userId: user.id }, create: { userId: user.id, name: body.orgName, area, ...address }, update: address })
   }
+  // 電話番号（数字だけにそろえた値。他の利用者には原則として非公開）と、取引相手に見せる範囲
+  await prisma.user.update({ where: { id: user.id }, data: { phone: body.phone, phoneVerified: false, phoneShare: body.phoneShare ?? 'NONE' } })
   const recoveryCode = await issueRecoveryCode(user.id)
 
   // Better Auth が発行したログイン用 Cookie を、そのままブラウザへ渡す

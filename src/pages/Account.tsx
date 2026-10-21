@@ -1,7 +1,11 @@
-import { MapPinned, UserRound } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
+import { MapPinned, Star, UserRound } from 'lucide-react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { ReviewStatus, SessionUser } from '../../shared/dto.js'
+import type { RatingSummary, ReviewDto, ReviewStatus, SessionUser } from '../../shared/dto.js'
+import { normalizePhone, PHONE_SHARE_LABEL, type PhoneShare } from '../../shared/phone.js'
+import { REVIEW_PUBLISH_DAYS } from '../../shared/trade.js'
+import { ReportButton } from '../components/ReportButton.js'
+import { ratingText } from '../lib/matches.js'
 import { DEFAULT_CENTER, type LatLng, type PlaceResult } from '../../shared/geo.js'
 import { isValidUsername, USERNAME_MAX, USERNAME_MIN } from '../../shared/limits.js'
 import type { ProfileInput } from '../../shared/schemas.js'
@@ -35,6 +39,9 @@ function ProfileSection({ user }: { user: SessionUser }) {
   const [publicEmail, setPublicEmail] = useState(p?.publicEmail ?? '')
   const [showEmail, setShowEmail] = useState(p?.showEmail ?? false)
   const [contactNote, setContactNote] = useState(p?.contactNote ?? '')
+  const [phone, setPhone] = useState(user.phone ?? '')
+  const [phoneShare, setPhoneShare] = useState<PhoneShare>(user.phoneShare)
+  const [acceptProposals, setAcceptProposals] = useState(user.acceptProposals)
   const [address, setAddress] = useState<AddressValue>({
     postalCode: user.address.postalCode ?? '',
     prefecture: user.address.prefecture ?? '',
@@ -76,7 +83,14 @@ function ProfileSection({ user }: { user: SessionUser }) {
     setBusy(true)
     setErrors({})
     setResult(null)
-    const body: ProfileInput = { orgName, area, ...address }
+    if (phone.trim() && !normalizePhone(phone)) {
+      setBusy(false)
+      setErrors({ phone: '電話番号の形式を確認してください（例：090-1234-5678、06-1234-5678）' })
+      return
+    }
+    const body: ProfileInput = { orgName, area, ...address, phoneShare }
+    if (phone.trim()) body.phone = normalizePhone(phone)!
+    if (isRestaurant) body.acceptProposals = acceptProposals
     if (isRestaurant) body.storePosition = storePos
     if (p) Object.assign(body, { publicPhone: publicPhone || null, showPhone, publicEmail: publicEmail || null, showEmail, contactNote: contactNote || null })
     try {
@@ -108,6 +122,31 @@ function ProfileSection({ user }: { user: SessionUser }) {
       <Field label="地域（市区町村）" required error={errors.area}>
         <input className="input" type="text" maxLength={40} value={area} onChange={(e) => setArea(e.target.value)} />
       </Field>
+
+      <h3 className="sub-title">電話番号（非公開）</h3>
+      <Field label="あなたの電話番号" error={errors.phone} hint="携帯・固定のどちらでも。他の利用者には公開されません。">
+        <input className="input" type="tel" inputMode="tel" autoComplete="tel" maxLength={20} value={phone} placeholder="例：090-1234-5678" onChange={(e) => setPhone(e.target.value)} />
+      </Field>
+      <Field label="取引相手への電話番号の表示" hint="取引チャットの電話ボタンで、取引相手があなたに電話をかけられるようにするかを選びます。取引に関係のない利用者には、どの設定でも表示されません。">
+        <select className="input" value={phoneShare} onChange={(e) => setPhoneShare(e.target.value as PhoneShare)}>
+          {(Object.keys(PHONE_SHARE_LABEL) as PhoneShare[]).map((k) => (
+            <option key={k} value={k}>
+              {PHONE_SHARE_LABEL[k]}
+            </option>
+          ))}
+        </select>
+      </Field>
+      {isRestaurant && (
+        <div className="field">
+          <label className="check check-box">
+            <input type="checkbox" checked={acceptProposals} onChange={(e) => setAcceptProposals(e.target.checked)} />
+            <span>
+              <strong>生産者からの取引提案を受け取る</strong>
+              <small className="block">オンにすると、生産者が提案先としてこのお店（店名と市区町村だけ）を見られ、農産物を提案できるようになります。特定の生産者からの提案は、やりとりの画面で受け取らないようにできます。</small>
+            </span>
+          </label>
+        </div>
+      )}
 
       <h3 className="sub-title">{isRestaurant ? 'お店の住所（非公開）' : '所在地（非公開）'}</h3>
       <p className="field-hint">
@@ -168,7 +207,7 @@ function ProfileSection({ user }: { user: SessionUser }) {
           <p className="field-hint">
             「公開する」をオンにした項目だけが、あなたの出品を含む仕入れ案を見ている飲食店に表示され、相談用のコピー文面にも入ります。ユーザー名は公開されません。
           </p>
-          <Field label="電話番号" error={errors.publicPhone}>
+          <Field label="公開用の電話番号" error={errors.publicPhone}>
             <input className="input" type="tel" inputMode="tel" autoComplete="tel" maxLength={20} value={publicPhone} placeholder="例：072-000-0000" onChange={(e) => setPublicPhone(e.target.value)} />
             <label className="check">
               <input type="checkbox" checked={showPhone} onChange={(e) => setShowPhone(e.target.checked)} />
@@ -192,6 +231,43 @@ function ProfileSection({ user }: { user: SessionUser }) {
         {busy ? '保存中…' : '保存する'}
       </button>
     </form>
+  )
+}
+
+/** 自分が受けた評価（公開中のレビューの平均・件数と一覧）。不適切なレビューは通報できる */
+function MyReviews() {
+  const [data, setData] = useState<{ summary: RatingSummary | null; reviews: ReviewDto[] } | null>(null)
+  useEffect(() => {
+    api<{ summary: RatingSummary | null; reviews: ReviewDto[] }>('/api/reviews?mine=1')
+      .then(setData)
+      .catch(() => setData({ summary: null, reviews: [] }))
+  }, [])
+  return (
+    <section className="card">
+      <h2 className="card-title">
+        <Star size={20} aria-hidden="true" style={{ verticalAlign: '-3px', marginRight: 4 }} />
+        あなたの評価
+      </h2>
+      {!data ? (
+        <p className="muted">読み込んでいます…</p>
+      ) : (
+        <>
+          <p className="rating-big">{ratingText(data.summary)}</p>
+          <p className="field-hint">取引完了後に、取引相手が投稿したレビューです。双方が投稿するか、取引完了から{REVIEW_PUBLISH_DAYS}日たつと公開されます。</p>
+          <ul className="review-list">
+            {data.reviews.map((r) => (
+              <li key={r.id} className="review-item">
+                <p>
+                  <strong>{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</strong> {r.reviewerName}
+                </p>
+                {r.comment && <p>{r.comment}</p>}
+                <ReportButton target={{ type: 'REVIEW', id: r.id, label: `${r.reviewerName}のレビュー` }} />
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
   )
 }
 
@@ -379,6 +455,7 @@ export function Account() {
     <>
       <PageTitle icon={UserRound}>マイページ</PageTitle>
       <ProfileSection user={user} />
+      {user.role !== 'ADMIN' && <MyReviews />}
       <UsernameSection user={user} />
       <PasswordSection />
       <RecoverySection />

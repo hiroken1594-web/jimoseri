@@ -5,7 +5,8 @@ import type { MatchDto } from '../../shared/dto.js'
 import { formatQtyUnit } from '../../shared/labels.js'
 import type { Unit } from '../../shared/allocate.js'
 import { api, errorMessage } from '../api.js'
-import { fetchMatches, MATCH_STATUS_CLASS, MATCH_STATUS_LABEL, notifyMatchesChanged } from '../lib/matches.js'
+import { fetchMatches, MATCH_STATUS_CLASS, notifyMatchesChanged, statusLabel } from '../lib/matches.js'
+import { DeliveryFields, deliveryDefaults, deliveryPayload, shippingFeeError, type DeliveryValue } from './DeliveryFields.js'
 import { Notice } from './ui.js'
 
 export interface RequestLine {
@@ -14,6 +15,8 @@ export interface RequestLine {
   itemName: string
   quantityMilli: number
   unit: Unit
+  /** 生産者の受渡場所の名前（受け取りの場合の受渡場所） */
+  locationName?: string
   /** 受け取りの回（仕入れ案で選ばれた日時） */
   pickupStartMs?: number
   pickupEndMs?: number
@@ -26,6 +29,8 @@ export interface RequestLine {
 export function MatchRequestPanel({ lines, demoMode, disabled, title = '生産者にマッチング依頼を送る' }: { lines: RequestLine[]; demoMode: boolean; disabled?: boolean; title?: string }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set(lines.map((l) => l.listingId)))
   const [message, setMessage] = useState('')
+  // 受渡方法と送料（初期値は、生産者の指定場所で受け取る）
+  const [delivery, setDelivery] = useState<DeliveryValue>(deliveryDefaults(lines[0]?.locationName ?? ''))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sentNow, setSentNow] = useState(false)
@@ -39,7 +44,7 @@ export function MatchRequestPanel({ lines, demoMode, disabled, title = '生産�
       const map = new Map<string, MatchDto>()
       for (const id of ids.split(',')) {
         const mine = matches.filter((m) => m.listingId === id)
-        const active = mine.find((m) => m.status === 'PENDING' || m.status === 'ACCEPTED') ?? mine[0]
+        const active = mine.find((m) => m.status === 'PENDING' || m.status === 'ACCEPTED' || m.status === 'AGREED') ?? mine[0]
         if (active) map.set(id, active)
       }
       setExisting(map)
@@ -56,12 +61,14 @@ export function MatchRequestPanel({ lines, demoMode, disabled, title = '生産�
 
   const isActive = (id: string) => {
     const m = existing.get(id)
-    return m?.status === 'PENDING' || m?.status === 'ACCEPTED'
+    return m?.status === 'PENDING' || m?.status === 'ACCEPTED' || m?.status === 'AGREED'
   }
   const sendable = lines.filter((l) => selected.has(l.listingId) && !isActive(l.listingId))
 
   const submit = async () => {
     if (sendable.length === 0) return setError('依頼する生産者を選んでください。')
+    const feeError = shippingFeeError(delivery)
+    if (feeError) return setError(feeError)
     setBusy(true)
     setError(null)
     try {
@@ -70,6 +77,7 @@ export function MatchRequestPanel({ lines, demoMode, disabled, title = '生産�
           lines: sendable.map((l) => ({ listingId: l.listingId, quantity: l.quantityMilli / 1000, pickupStartMs: l.pickupStartMs, pickupEndMs: l.pickupEndMs })),
           message: message.trim() || undefined,
           demoMode,
+          ...deliveryPayload(delivery),
         },
       })
       setSentNow(true)
@@ -90,7 +98,7 @@ export function MatchRequestPanel({ lines, demoMode, disabled, title = '生産�
         {title}
       </h3>
       <p className="field-hint">
-        依頼したい生産者を選んで送ります。生産者が<strong>承認するとマッチング成立</strong>で、チャットで数量・価格・受渡を相談できます。依頼しても、注文の確定や在庫の確保にはなりません。
+        依頼したい生産者を選んで送ります。送った時点からチャットで相談でき、生産者が<strong>承認するとマッチング成立</strong>です。依頼しても、注文の確定や在庫の確保にはなりません。
       </p>
       <ul className="match-pick">
         {lines.map((l) => {
@@ -114,8 +122,8 @@ export function MatchRequestPanel({ lines, demoMode, disabled, title = '生産�
                   <strong>{l.producerName}</strong>：{l.itemName} {formatQtyUnit(l.quantityMilli, l.unit)}
                 </span>
               </label>
-              {m && <span className={MATCH_STATUS_CLASS[m.status]}>{MATCH_STATUS_LABEL[m.status]}</span>}
-              {m?.status === 'ACCEPTED' && (
+              {m && <span className={MATCH_STATUS_CLASS[m.status]}>{statusLabel(m)}</span>}
+              {m && (
                 <Link className="btn btn-small" to={`/matches/${m.id}`}>
                   チャット
                 </Link>
@@ -126,6 +134,7 @@ export function MatchRequestPanel({ lines, demoMode, disabled, title = '生産�
       </ul>
       {sendable.length > 0 && (
         <>
+          <DeliveryFields idPrefix="match" value={delivery} onChange={setDelivery} pickupPlace={lines[0]?.locationName ?? ''} />
           <label className="field-label" htmlFor="match-message">
             ひとこと（任意）
           </label>
@@ -139,7 +148,7 @@ export function MatchRequestPanel({ lines, demoMode, disabled, title = '生産�
       {sentNow && (
         <Notice kind="success" title="依頼を送りました">
           <p>
-            生産者が承認するとマッチング成立です。状況は<Link to="/matches">「やりとり」</Link>で確認できます。
+            生産者に通知しました。承認されるとマッチング成立です。それまでも<Link to="/matches">「やりとり」</Link>のチャットで相談できます。
           </p>
         </Notice>
       )}

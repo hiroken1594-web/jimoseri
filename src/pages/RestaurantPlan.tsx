@@ -441,6 +441,7 @@ export function RestaurantPlan() {
             itemName: d.itemName,
             quantityMilli: l.quantityMilli,
             unit: d.unit,
+            locationName: l.pickupPointName,
             pickupStartMs: plan.listingInfo[l.listingId]?.pickupStartMs,
             pickupEndMs: plan.listingInfo[l.listingId]?.pickupEndMs,
           }))}

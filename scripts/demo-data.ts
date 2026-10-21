@@ -38,7 +38,7 @@ async function removeDemoData(): Promise<void> {
   const listings = await prisma.listing.deleteMany({ where: { isDemo: true } })
   const locations = await prisma.pickupLocation.deleteMany({ where: { isDemo: true, listings: { none: {} } } })
   // デモ用の生産者のアカウントごと消す（ログイン情報・セッションも一緒に消える）
-  const users = await prisma.user.deleteMany({ where: { producer: { isDemo: true } } })
+  const users = await prisma.user.deleteMany({ where: { OR: [{ producer: { isDemo: true } }, { restaurant: { isDemo: true } }] } })
   console.log(`デモデータを削除しました：出品 ${listings.count} 件、受渡場所 ${locations.count} 件、アカウント ${users.count} 件`)
 }
 
@@ -51,7 +51,7 @@ if (command === 'remove') {
 // ---------- 登録 ----------
 const { registerAccount } = await import('../api/_lib/accounts.js')
 await removeDemoData()
-const existing = await prisma.user.findUnique({ where: { username: DEMO_USERNAME } })
+const existing = await prisma.user.findFirst({ where: { username: { in: [DEMO_USERNAME, 'demo_shop'] } } })
 if (existing) {
   console.error(`ユーザー名「${DEMO_USERNAME}」はデモ以外のアカウントが使っています。中止しました。`)
   process.exit(1)
@@ -70,6 +70,16 @@ writeFileSync(
 const res = await registerAccount({ username: DEMO_USERNAME, password: demoPassword, role: 'PRODUCER', orgName: 'デモ農園（お試し用）', area: '能勢町' })
 if (!res.ok) throw new Error(`デモ用アカウントを作成できませんでした: ${res.status}`)
 const user = await prisma.user.findUniqueOrThrow({ where: { username: DEMO_USERNAME } })
+
+// デモ用の飲食店（お試し用）：生産者からの取引提案を受け取る設定。デモの生産者は、この飲食店にだけ提案できる
+{
+  const shopRes = await registerAccount({ username: 'demo_shop', password: demoPassword, role: 'RESTAURANT', orgName: 'デモ食堂（お試し用）', area: '大阪市福島区' })
+  if (!shopRes.ok) throw new Error(`デモ用の飲食店を作成できませんでした: ${shopRes.status}`)
+  const shopUser = await prisma.user.findUniqueOrThrow({ where: { username: 'demo_shop' } })
+  await prisma.restaurant.create({
+    data: { userId: shopUser.id, name: 'デモ食堂（お試し用）', area: '大阪市福島区', prefecture: '大阪府', city: '大阪市福島区', isDemo: true, acceptProposals: true },
+  })
+}
 const producer = await prisma.producer.create({
   data: {
     userId: user.id,
@@ -381,5 +391,5 @@ console.log(`デモの生産者を追加しました：${userRows.length} 件（
 
 const summary = PLAN.map((p) => `${{ active: '公開中', stopped: '公開停止', soldout: '数量0', expired: '受渡日を過ぎた', suspended: '運営者が停止', pending: '場所が確認待ち' }[p.kind]} ${p.count}`).join('・')
 console.log(`デモ用アカウント demo_farm の出品 ${rows.length} 件（${summary}）、受渡場所 3 件`)
-console.log(`デモ用アカウント：ユーザー名「${DEMO_USERNAME}」と、検証用の農家 ${scenario.map(([code]) => `demo_${code.toLowerCase()}`).join('・')}。パスワードは ${PASSWORD_FILE} に保存しました（Git には含まれません）。`)
+console.log(`デモ用アカウント：ユーザー名「${DEMO_USERNAME}」、デモの飲食店「demo_shop」と、検証用の農家 ${scenario.map(([code]) => `demo_${code.toLowerCase()}`).join('・')}。パスワードは ${PASSWORD_FILE} に保存しました（Git には含まれません）。`)
 await prisma.$disconnect()

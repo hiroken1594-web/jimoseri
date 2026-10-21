@@ -2,6 +2,7 @@ import { KeyRound, LogIn, UserPlus } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { formatZip, normalizeZip } from '../../shared/geo.js'
+import { normalizePhone, PHONE_SHARE_LABEL, type PhoneShare } from '../../shared/phone.js'
 import { isValidUsername, USERNAME_MAX, USERNAME_MIN } from '../../shared/limits.js'
 import type { SignupInput } from '../../shared/schemas.js'
 import { api, ApiError, errorMessage } from '../api.js'
@@ -163,6 +164,8 @@ export function Signup() {
   const [role, setRole] = useState<'RESTAURANT' | 'PRODUCER' | null>(initialRole === 'RESTAURANT' || initialRole === 'PRODUCER' ? initialRole : null)
   const [orgName, setOrgName] = useState('')
   const [address, setAddress] = useState<AddressValue>(emptyAddress)
+  const [phone, setPhone] = useState('')
+  const [phoneShare, setPhoneShare] = useState<PhoneShare>('NONE')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [invite, setInvite] = useState('')
@@ -174,7 +177,7 @@ export function Signup() {
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null)
 
   // 入力し直したら、前回のエラー表示を消す
-  useEffect(() => setErrors({}), [role, orgName, address, username, password, invite, agree])
+  useEffect(() => setErrors({}), [role, orgName, address, phone, username, password, invite, agree])
 
   if (recoveryCode) {
     return (
@@ -211,6 +214,7 @@ export function Signup() {
     if (!orgName.trim() || orgName.trim().length > 40) next.orgName = '1〜40文字で入力してください'
     const zip = normalizeZip(address.postalCode)
     if (!zip) next.postalCode = '郵便番号を7桁の数字で入力してください'
+    if (!normalizePhone(phone)) next.phone = '電話番号を入力してください（例：090-1234-5678、06-1234-5678）'
     if (!address.city.trim()) next.city = '市区町村を入力してください（郵便番号から自動で入ります）'
     if (!isValidUsername(name)) next.username = `半角の英小文字・数字・_ で${USERNAME_MIN}〜${USERNAME_MAX}文字、英字で始めてください`
     if (password.length < master.minPasswordLength) next.password = `${master.minPasswordLength}文字以上で入力してください`
@@ -234,6 +238,8 @@ export function Signup() {
         city: address.city.trim() || null,
         town: address.town.trim() || null,
         addressLine: address.addressLine.trim() || null,
+        phone: normalizePhone(phone)!,
+        phoneShare,
         inviteCode: invite.trim() || undefined,
         website,
       }
@@ -276,6 +282,18 @@ export function Signup() {
         hint={role === 'PRODUCER' ? '飲食店に表示される名前です。' : undefined}
       >
         <input className="input" type="text" autoComplete="organization" maxLength={40} value={orgName} onChange={(e) => setOrgName(e.target.value)} />
+      </Field>
+      <Field label="電話番号" required error={errors.phone} hint="携帯・固定のどちらでも。ハイフンはあってもなくても構いません。他の利用者には公開されません。">
+        <input className="input" type="tel" inputMode="tel" autoComplete="tel" maxLength={20} value={phone} placeholder="例：090-1234-5678" onChange={(e) => setPhone(e.target.value)} />
+      </Field>
+      <Field label="取引相手への電話番号の表示" hint="取引チャットの電話ボタンで、相手があなたに電話をかけられるようにするかを選びます。あとからマイページで変えられます。">
+        <select className="input" value={phoneShare} onChange={(e) => setPhoneShare(e.target.value as PhoneShare)}>
+          {(Object.keys(PHONE_SHARE_LABEL) as PhoneShare[]).map((k) => (
+            <option key={k} value={k}>
+              {PHONE_SHARE_LABEL[k]}
+            </option>
+          ))}
+        </select>
       </Field>
       <fieldset className="fieldset">
         <legend>{role === 'PRODUCER' ? '所在地' : 'お店の住所'}</legend>

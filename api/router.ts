@@ -12,11 +12,15 @@ import * as listings from './_routes/listings.js'
 import * as locations from './_routes/locations.js'
 import * as market from './_routes/market.js'
 import * as master from './_routes/master.js'
+import * as notifications from './_routes/notifications.js'
+import * as partners from './_routes/partners.js'
+import * as proposals from './_routes/proposals.js'
 import * as matches from './_routes/matches.js'
 import * as me from './_routes/me.js'
 import * as plan from './_routes/plan.js'
 import * as recovery from './_routes/recovery.js'
 import * as reports from './_routes/reports.js'
+import * as reviews from './_routes/reviews.js'
 import * as signup from './_routes/signup.js'
 
 type Handler = (request: Request) => Promise<Response>
@@ -36,9 +40,13 @@ const ROUTES: Record<string, RouteModule> = {
   master,
   matches,
   me,
+  notifications,
+  partners,
   plan,
+  proposals,
   recovery,
   reports,
+  reviews,
   signup,
 }
 

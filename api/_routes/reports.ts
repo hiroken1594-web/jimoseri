@@ -31,6 +31,13 @@ export const POST = handle(async (request) => {
     if (!producer) throw new HttpError(404, 'NOT_FOUND', '通報する生産者が見つかりません。')
     if (producer.id === actor.producerId) throw new HttpError(400, 'SELF', '自分のアカウントは通報できません。')
     targetLabel = producer.farmName
+  } else if (body.targetType === 'REVIEW') {
+    // 自分が受けたレビュー（取引相手が書いたもの）だけを通報できる
+    const review = await prisma.review.findUnique({ where: { id: body.targetId }, include: { match: { include: { restaurant: true, producer: true } } } })
+    const mineAsTarget =
+      review && ((review.targetRole === 'PRODUCER' && review.targetId === actor.producerId) || (review.targetRole === 'RESTAURANT' && review.targetId === actor.restaurantId))
+    if (!review || !mineAsTarget) throw new HttpError(404, 'NOT_FOUND', '通報するレビューが見つかりません。')
+    targetLabel = `${review.reviewerRole === 'PRODUCER' ? review.match.producer.farmName : review.match.restaurant.name}のレビュー（★${review.rating}）「${review.comment.slice(0, 40)}」`
   } else {
     // 飲食店のプロフィールは他の利用者に公開していないため、確認できる画面ができるまで受け付けない
     throw new HttpError(400, 'UNSUPPORTED', '飲食店アカウントの通報は、現在受け付けていません。運営者へ直接お問い合わせください。')
@@ -67,6 +74,10 @@ async function targetState(type: string, id: string): Promise<ReportItem['target
   if (type === 'PRODUCER') {
     const p = await prisma.producer.findUnique({ where: { id }, select: { approvalStatus: true } })
     return !p ? 'DELETED' : p.approvalStatus === 'SUSPENDED' ? 'SUSPENDED' : 'ACTIVE'
+  }
+  if (type === 'REVIEW') {
+    const v = await prisma.review.findUnique({ where: { id }, select: { hidden: true } })
+    return !v ? 'DELETED' : v.hidden ? 'SUSPENDED' : 'ACTIVE'
   }
   const r = await prisma.restaurant.findUnique({ where: { id }, include: { user: { select: { suspended: true } } } })
   return !r ? 'DELETED' : r.user.suspended ? 'SUSPENDED' : 'ACTIVE'
@@ -119,6 +130,9 @@ export const PATCH = handle(async (request) => {
       count = (await prisma.listing.updateMany({ where: { id: report.targetId }, data: { adminSuspended: suspend } })).count
     } else if (report.targetType === 'PRODUCER') {
       count = (await prisma.producer.updateMany({ where: { id: report.targetId }, data: { approvalStatus: suspend ? 'SUSPENDED' : 'APPROVED' } })).count
+    } else if (report.targetType === 'REVIEW') {
+      // レビューの「停止」は非公開にすること（削除はしない）
+      count = (await prisma.review.updateMany({ where: { id: report.targetId }, data: { hidden: suspend } })).count
     } else {
       const r = await prisma.restaurant.findUnique({ where: { id: report.targetId } })
       if (r) count = (await prisma.user.updateMany({ where: { id: r.userId, role: { not: 'ADMIN' } }, data: { suspended: suspend } })).count

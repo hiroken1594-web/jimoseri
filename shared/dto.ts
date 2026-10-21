@@ -3,6 +3,8 @@ import type { AllocationResult, Grade, IrregularReason, TimeMode, Unit } from '.
 import type { Relaxation } from './relax.js'
 import type { DemandInput } from './schemas.js'
 import type { PickupSchedule } from './schedule.js'
+import type { DeliveryMethod, ShippingPayer } from './trade.js'
+import type { PhoneShare } from './phone.js'
 
 export type Role = 'RESTAURANT' | 'PRODUCER' | 'ADMIN'
 export type ReviewStatus = 'PENDING' | 'APPROVED' | 'SUSPENDED'
@@ -33,6 +35,11 @@ export interface SessionUser {
   address: AddressDto
   /** 飲食店：お店の位置（地図で探すときの中心の初期値。非公開） */
   storePosition: { lat: number; lng: number } | null
+  /** 本人の電話番号（表示用。本人にだけ返す） */
+  phone: string | null
+  phoneShare: PhoneShare
+  /** 飲食店：生産者からの取引提案を受け取るか */
+  acceptProposals: boolean
 }
 
 export interface AddressDto {
@@ -140,6 +147,8 @@ export interface MarketSearchResponse {
 /** 出品の詳細（飲食店向け） */
 export interface ListingDetail extends MarketListing {
   producerArea: string
+  /** 生産者の評価（公開されているレビューの平均と件数） */
+  producerRating: RatingSummary | null
   contact: PublicContact | null
   location: { id: string; name: string; municipality: string; address: string; note: string; hours: string; latitude: number | null; longitude: number | null }
 }
@@ -325,7 +334,7 @@ export interface FavoriteItem {
   locationName: string | null
 }
 
-export type ReportTargetType = 'LISTING' | 'PRODUCER' | 'RESTAURANT'
+export type ReportTargetType = 'LISTING' | 'PRODUCER' | 'RESTAURANT' | 'REVIEW'
 export type ReportReason = 'FALSE_INFO' | 'INAPPROPRIATE' | 'NUISANCE' | 'FRAUD' | 'OTHER'
 export type ReportStatus = 'OPEN' | 'IN_REVIEW' | 'RESOLVED' | 'REJECTED'
 
@@ -348,7 +357,7 @@ export interface ReportItem {
 
 // ---- マッチング・チャット ----
 
-export type MatchStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELLED'
+export type MatchStatus = 'PENDING' | 'ACCEPTED' | 'AGREED' | 'COMPLETED' | 'DECLINED' | 'CANCELLED'
 
 /** 飲食店から生産者への依頼（生産者が承認するとマッチング成立） */
 export interface MatchDto {
@@ -375,6 +384,19 @@ export interface MatchDto {
   isDemo: boolean
   /** 見ている人の立場 */
   viewer: 'RESTAURANT' | 'PRODUCER' | 'ADMIN'
+  /** 提案した側（返事をするのは反対側） */
+  initiator: 'RESTAURANT' | 'PRODUCER'
+  /** 取引条件（送料が null のときは未確定） */
+  deliveryMethod: DeliveryMethod
+  deliveryPlace: string
+  shippingFeeYen: number | null
+  shippingPayer: ShippingPayer
+  termsNote: string
+  /** いまの条件への合意と、取引完了の確認（それぞれの立場） */
+  agreed: { restaurant: boolean; producer: boolean }
+  completed: { restaurant: boolean; producer: boolean }
+  /** 相手の評価（公開されているレビューの平均と件数） */
+  partnerRating: RatingSummary | null
   /** 相手からの未読のメッセージ数 */
   unread: number
   lastMessage: { body: string; atMs: number; mine: boolean } | null
@@ -388,9 +410,61 @@ export interface ChatMessageDto {
   senderRole: Role
   /** 自分が送ったメッセージか */
   mine: boolean
+  /** TEXT：メッセージ／SYSTEM：取引の記録／PROPOSAL：条件の提案カード */
+  kind: 'TEXT' | 'SYSTEM' | 'PROPOSAL'
+  proposal: TermsProposalDto | null
+}
+
+export interface TermsProposalDto {
+  id: string
+  proposerRole: 'RESTAURANT' | 'PRODUCER'
+  quantityMilli: number
+  unitPriceYen: number
+  deliveryMethod: DeliveryMethod
+  deliveryPlace: string
+  pickupStartMs: number
+  pickupEndMs: number
+  shippingFeeYen: number | null
+  shippingPayer: ShippingPayer
+  note: string
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'SUPERSEDED'
+  createdAtMs: number
+}
+
+export interface RatingSummary {
+  average: number
+  count: number
+}
+
+export interface ReviewDto {
+  id: string
+  reviewerRole: 'RESTAURANT' | 'PRODUCER'
+  reviewerName: string
+  rating: number
+  satisfaction: number
+  politeness: number
+  smoothness: number
+  comment: string
+  createdAtMs: number
+}
+
+export interface NotificationDto {
+  id: string
+  kind: string
+  title: string
+  body: string
+  link: string
+  read: boolean
+  createdAtMs: number
 }
 
 export interface ChatResponse {
   match: MatchDto
   messages: ChatMessageDto[]
+  /** 相手の電話番号（相手が見せることに同意していて、今の状態で見せてよい場合だけ） */
+  partnerPhone: string | null
+  /** 電話番号を見せられない理由 */
+  phoneNote: string
+  /** レビュー：自分の投稿と、公開された相手の投稿 */
+  reviews: { mine: ReviewDto | null; partner: ReviewDto | null; partnerSubmitted: boolean }
 }

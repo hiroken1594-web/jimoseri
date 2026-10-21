@@ -3,6 +3,7 @@ import type { Role, SessionUser } from '../../shared/dto.js'
 import { getAuth } from './auth-server.js'
 import { HttpError } from './http.js'
 import { getPrisma } from './prisma.js'
+import { formatPhone } from '../../shared/phone.js'
 
 export interface Actor {
   user: SessionUser
@@ -60,6 +61,9 @@ export async function getActor(request: Request): Promise<Actor | null> {
         town: org?.town ?? null,
         addressLine: org?.addressLine ?? null,
       },
+      phone: user.phone ? formatPhone(user.phone) : null,
+      phoneShare: user.phoneShare,
+      acceptProposals: user.restaurant?.acceptProposals ?? false,
       storePosition:
         user.restaurant?.latitude != null && user.restaurant.longitude != null ? { lat: user.restaurant.latitude, lng: user.restaurant.longitude } : null,
     },

@@ -62,11 +62,13 @@ const newPassword = `first-${run}-password`
 const CODE_FORMAT = /^([0-9A-HJKMNP-TV-Z]{4}-){4}[0-9A-HJKMNP-TV-Z]{4}$/
 
 console.log('新規登録・ログイン（ユーザー名＋パスワード）')
-const signupBody = (over = {}) => ({ username: `x_${Math.floor(Math.random() * 1e9)}`, password: newPassword, role: 'PRODUCER', orgName: 'E2E農園', postalCode: '563-0101', prefecture: '大阪府', city: '豊能郡能勢町', ...over })
+const signupBody = (over = {}) => ({ username: `x_${Math.floor(Math.random() * 1e9)}`, password: newPassword, role: 'PRODUCER', orgName: 'E2E農園', postalCode: '563-0101', prefecture: '大阪府', city: '豊能郡能勢町', phone: '090-1111-2222', ...over })
 const signup = (over) => client()('/api/signup', { body: signupBody(over) })
 check('役割に「運営者」を指定した登録は拒否', (await signup({ role: 'ADMIN' })).status === 400)
 check('役割なしの登録は拒否', (await signup({ role: undefined })).status === 400)
 check('郵便番号なしの登録は拒否', (await signup({ postalCode: undefined })).status === 400)
+check('電話番号なしの登録は拒否', (await signup({ phone: undefined })).status === 400)
+check('形式の違う電話番号の登録は拒否', (await signup({ phone: '12-3456' })).status === 400 && (await signup({ phone: '0120-12' })).status === 400)
 check('郵便番号の形式が違う登録は拒否', (await signup({ postalCode: '12-345' })).status === 400)
 check('短いパスワードは拒否', (await signup({ password: 'short' })).status === 400)
 check('短すぎるユーザー名は拒否', (await signup({ username: 'ab' })).status === 400)
@@ -489,7 +491,8 @@ console.log('マッチング（デモデータ）：仕入れ案の農家ごと�
   r = await restaurant('/api/chat', { body: { matchId: mine.id, body: 'はじめまして。数量と受渡日時の確認をお願いします。', clientId: 'e2e-demo-chat-1' } })
   const reply = await s1('/api/chat', { body: { matchId: mine.id, body: '承知しました。10時に拠点でお渡しできます。', clientId: 'e2e-demo-chat-2' } })
   const log = (await restaurant('/api/chat?matchId=' + mine.id)).data
-  check('デモでも、成立したマッチングで双方がメッセージを送受信できる', r.status === 201 && reply.status === 201 && log.messages.length === 2 && log.messages[1].mine === false)
+  const texts = log.messages.filter((m) => m.kind === 'TEXT')
+  check('デモでも、成立したマッチングで双方がメッセージを送受信できる', r.status === 201 && reply.status === 201 && texts.length === 2 && texts[1].mine === false)
 }
 execSync('npx tsx scripts/demo-data.ts remove', { stdio: 'ignore' })
 const leftovers = await db.query('select (select count(*)::int from "Listing" where "isDemo") as l, (select count(*)::int from "PickupLocation" where "isDemo") as p, (select count(*)::int from "Producer" where "isDemo") as pr')
@@ -679,7 +682,7 @@ console.log('マッチング・チャット（依頼 → 承認・辞退・取�
   const listA = r.data.listing
   r = await farmB('/api/listings', { body: listingBody({ grade: 'REGULAR', irregularReason: null, quantity: 4, unitPriceYen: 560, pickupDate: jstDate(3) }) })
   const listB = r.data.listing
-  check('生産者・未ログインは依頼を送れない', (await farmA('/api/matches', { body: { lines: [{ listingId: listA.id, quantity: 1 }] } })).status === 403 && (await anon('/api/matches', { body: { lines: [{ listingId: listA.id, quantity: 1 }] } })).status === 401)
+  check('未ログインは提案できない。生産者は飲食店あての形式でしか提案できない', (await farmA('/api/matches', { body: { lines: [{ listingId: listA.id, quantity: 1 }] } })).status === 400 && (await anon('/api/matches', { body: { lines: [{ listingId: listA.id, quantity: 1 }] } })).status === 401)
   check('在庫より多い数量では依頼できない', (await restaurant('/api/matches', { body: { lines: [{ listingId: listA.id, quantity: 7 }] } })).status === 400)
   check('受渡日時が出品と合わない依頼は拒否', (await restaurant('/api/matches', { body: { lines: [{ listingId: listA.id, quantity: 3, pickupStartMs: Date.now() + 3600000, pickupEndMs: Date.now() + 7200000 }] } })).status === 400)
   r = await restaurant('/api/matches', { body: { lines: [{ listingId: listA.id, quantity: 3 }], message: '来週も同じ量を相談したいです' } })
@@ -687,7 +690,7 @@ console.log('マッチング・チャット（依頼 → 承認・辞退・取�
   check('飲食店が生産者にマッチング依頼を送れる（返事待ち）', r.status === 201 && mA?.status === 'PENDING' && mA.producerName && mA.quantityMilli === 3000, JSON.stringify(r.data))
   check('同じ出品への依頼は、返事待ち・成立の間は重複して送れない', (await restaurant('/api/matches', { body: { lines: [{ listingId: listA.id, quantity: 1 }] } })).status === 409)
   check('依頼しただけでは、在庫は減らない（在庫の確保をしない）', (await farmA('/api/listings')).data.listings.find((l) => l.id === listA.id).quantityMilli === 6000)
-  check('成立前はチャットを使えない', (await restaurant('/api/chat?matchId=' + mA.id)).status === 403 && (await restaurant('/api/chat', { body: { matchId: mA.id, body: 'x', clientId: 'e2e-before-accept' } })).status === 403)
+  check('承認の前（相談中）でも、チャットで相談できる', (await restaurant('/api/chat?matchId=' + mA.id)).status === 200 && (await restaurant('/api/chat', { body: { matchId: mA.id, body: '承認の前に、品質を確認させてください。', clientId: 'e2e-before-accept' } })).status === 201)
   check('関係のない飲食店・生産者は、依頼を見られない', (await restaurant2('/api/matches?id=' + mA.id)).status === 404 && (await farmB('/api/matches?id=' + mA.id)).status === 404)
   check('飲食店は自分の依頼を承認できない（承認は生産者だけ）', (await restaurant('/api/matches?id=' + mA.id, { method: 'PATCH', body: { action: 'accept' } })).status === 403)
   check('別の生産者は承認できない', (await farmB('/api/matches?id=' + mA.id, { method: 'PATCH', body: { action: 'accept' } })).status === 404)
@@ -703,18 +706,21 @@ console.log('マッチング・チャット（依頼 → 承認・辞退・取�
   r = await restaurant('/api/chat', { body: { matchId: mA.id, body: 'はじめまして。数量と最終価格を確認させてください。', clientId: 'e2e-chat-0001' } })
   check('飲食店からメッセージを送れる', r.status === 201 && r.data.message.mine === true)
   const unreadA = (await farmA('/api/matches')).data.matches.find((m) => m.id === mA.id).unread
-  check('生産者側に、新着（未読1件）として表示される', unreadA === 1, String(unreadA))
+  check('生産者側に、新着（未読2件：承認前と後のメッセージ）として表示される', unreadA === 2, String(unreadA))
   const logA = (await farmA('/api/chat?matchId=' + mA.id)).data
-  check('生産者側で受信を確認できる（相手のメッセージとして）', logA.messages.length === 1 && logA.messages[0].mine === false && logA.messages[0].senderRole === 'RESTAURANT')
+  const textsA = logA.messages.filter((m) => m.kind === 'TEXT')
+  check('生産者側で受信を確認できる（相手のメッセージとして）', textsA.length === 2 && textsA[1].mine === false && textsA[1].senderRole === 'RESTAURANT')
+  check('承認などの取引の記録も、チャットの流れに残る', logA.messages.some((m) => m.kind === 'SYSTEM' && m.body.includes('マッチング成立')))
   check('開いた後は、未読が0になる', (await farmA('/api/matches')).data.matches.find((m) => m.id === mA.id).unread === 0)
   r = await farmA('/api/chat', { body: { matchId: mA.id, body: '3kgで1,740円です。木曜10時に拠点でお渡しできます。', clientId: 'e2e-chat-0002' } })
   check('生産者から返信できる', r.status === 201)
   const logR = (await restaurant('/api/chat?matchId=' + mA.id)).data
-  check('飲食店側で返信を確認できる（送信日時の順）', logR.messages.length === 2 && logR.messages[1].mine === false && logR.messages[0].createdAtMs <= logR.messages[1].createdAtMs)
+  const textsR = logR.messages.filter((m) => m.kind === 'TEXT')
+  check('飲食店側で返信を確認できる（送信日時の順）', textsR.length === 3 && textsR[2].mine === false && textsR[1].createdAtMs <= textsR[2].createdAtMs)
   r = await restaurant('/api/chat', { body: { matchId: mA.id, body: 'はじめまして。数量と最終価格を確認させてください。', clientId: 'e2e-chat-0001' } })
-  check('同じメッセージを再送しても、二重に保存されない', r.status === 201 && (await restaurant('/api/chat?matchId=' + mA.id)).data.messages.length === 2)
-  const dbMsgs = (await db.query('select "senderRole" from "ChatMessage" where "matchId" = $1 order by "createdAt"', [mA.id])).rows.map((x) => x.senderRole)
-  check('メッセージの履歴が DB に保存されている（送った人の立場はサーバーが決める）', JSON.stringify(dbMsgs) === '["RESTAURANT","PRODUCER"]', JSON.stringify(dbMsgs))
+  check('同じメッセージを再送しても、二重に保存されない', r.status === 201 && (await restaurant('/api/chat?matchId=' + mA.id)).data.messages.filter((m) => m.kind === 'TEXT').length === 3)
+  const dbMsgs = (await db.query('select "senderRole" from "ChatMessage" where "matchId" = $1 and kind = $2 order by "createdAt"', [mA.id, 'TEXT'])).rows.map((x) => x.senderRole)
+  check('メッセージの履歴が DB に保存されている（送った人の立場はサーバーが決める）', JSON.stringify(dbMsgs) === '["RESTAURANT","RESTAURANT","PRODUCER"]', JSON.stringify(dbMsgs))
   check('関係のない飲食店は、チャットを読めない・送れない', (await restaurant2('/api/chat?matchId=' + mA.id)).status === 404 && (await restaurant2('/api/chat', { body: { matchId: mA.id, body: 'なりすまし', clientId: 'e2e-spoof-0001' } })).status === 404)
   check('関係のない生産者は、チャットを読めない・送れない', (await farmB('/api/chat?matchId=' + mA.id)).status === 404 && (await farmB('/api/chat', { body: { matchId: mA.id, body: 'なりすまし', clientId: 'e2e-spoof-0002' } })).status === 404)
   check('未ログインでは、チャットを読めない', (await anon('/api/chat?matchId=' + mA.id)).status === 401)
@@ -725,7 +731,7 @@ console.log('マッチング・チャット（依頼 → 承認・辞退・取�
   r = await restaurant('/api/matches', { body: { lines: [{ listingId: listB.id, quantity: 2 }] } })
   const mB = r.data.matches[0]
   r = await farmB('/api/matches?id=' + mB.id, { method: 'PATCH', body: { action: 'decline', reason: '今週は数量が足りません' } })
-  check('生産者は辞退でき、理由が飲食店に伝わる。辞退ではチャットは開かない', r.status === 200 && r.data.match.status === 'DECLINED' && (await restaurant('/api/matches?id=' + mB.id)).data.match.declineReason === '今週は数量が足りません' && (await restaurant('/api/chat?matchId=' + mB.id)).status === 403)
+  check('生産者は辞退でき、理由が飲食店に伝わる。辞退後は履歴を見られるが、送信はできない', r.status === 200 && r.data.match.status === 'DECLINED' && (await restaurant('/api/matches?id=' + mB.id)).data.match.declineReason === '今週は数量が足りません' && (await restaurant('/api/chat?matchId=' + mB.id)).status === 200 && (await restaurant('/api/chat', { body: { matchId: mB.id, body: 'x', clientId: 'e2e-after-decline' } })).status === 403)
   r = await restaurant('/api/matches', { body: { lines: [{ listingId: listB.id, quantity: 1 }] } })
   check('辞退された後は、同じ出品にもう一度依頼できる', r.status === 201)
   const mB2 = r.data.matches[0]
@@ -733,7 +739,140 @@ console.log('マッチング・チャット（依頼 → 承認・辞退・取�
   check('飲食店は返事待ちの依頼を取り下げられる', r.status === 200 && r.data.match.status === 'CANCELLED')
   check('取り下げた依頼を、生産者は承認できない', (await farmB('/api/matches?id=' + mB2.id, { method: 'PATCH', body: { action: 'accept' } })).status === 409)
   await farmA('/api/listings?id=' + listA.id, { method: 'DELETE' })
-  check('出品を削除しても、成立したマッチングとチャットは残る', (await restaurant('/api/chat?matchId=' + mA.id)).data.messages.length === 2)
+  check('出品を削除しても、成立したマッチングとチャットは残る', (await restaurant('/api/chat?matchId=' + mA.id)).data.messages.filter((m) => m.kind === 'TEXT').length === 3)
+}
+
+
+console.log('取引の流れ A：飲食店から提案 → 承認前に相談 → 承認 → 条件の提案と合意 → 双方の完了確認 → 相互レビュー')
+{
+  const notes = async (c) => (await c('/api/notifications')).data
+  const kinds = async (c) => (await notes(c)).notifications.map((n) => n.kind)
+  r = await farmA('/api/listings', { body: listingBody({ grade: 'REGULAR', irregularReason: null, quantity: 8, unitPriceYen: 500, pickupDate: jstDate(3) }) })
+  const L = r.data.listing
+  r = await restaurant('/api/matches', { body: { lines: [{ listingId: L.id, quantity: 5 }], message: '配送でお願いできますか', deliveryMethod: 'DELIVERY', deliveryPlace: '店の裏口（大阪市福島区）', shippingFeeYen: null } })
+  const m = r.data?.matches?.[0]
+  check('飲食店から、受渡方法つきで取引を提案できる（配送・送料は未確定）', r.status === 201 && m.initiator === 'RESTAURANT' && m.deliveryMethod === 'DELIVERY' && m.shippingFeeYen === null && m.status === 'PENDING', JSON.stringify(r.data))
+  check('生産者に「取引の提案が届いた」通知が届く（未読）', (await kinds(farmA)).includes('PROPOSAL_RECEIVED') && (await notes(farmA)).unread >= 1)
+  check('他人の通知は見えない（通知は本人のものだけ）', !(await notes(farmB)).notifications.some((n) => n.link === '/matches/' + m.id))
+  r = await farmA('/api/chat', { body: { matchId: m.id, body: '承認の前に確認です。配送は午前でよいですか？', clientId: 'flowA-pre-1' } })
+  check('提案を受けた側も、承認の前にメッセージを送れる', r.status === 201)
+  check('メッセージの通知が相手に届く', (await kinds(restaurant)).includes('NEW_MESSAGE'))
+  let chatR = (await restaurant('/api/chat?matchId=' + m.id)).data
+  let chatA = (await farmA('/api/chat?matchId=' + m.id)).data
+  check('電話：相談中でも見せる設定の相手（生産者）の番号は、飲食店に表示される', chatR.partnerPhone === '080-0000-0003', String(chatR.partnerPhone))
+  check('電話：マッチング成立後だけ見せる設定の相手（飲食店）の番号は、承認前は表示されず、理由が出る', chatA.partnerPhone === null && chatA.phoneNote.includes('承認'))
+  check('飲食店は、自分の提案を承認できない', (await restaurant('/api/matches?id=' + m.id, { method: 'PATCH', body: { action: 'accept' } })).status === 403)
+  check('承認の前は、条件の提案はできない（メッセージで相談）', (await restaurant('/api/proposals', { body: { matchId: m.id, quantity: 5, unitPriceYen: 500, deliveryMethod: 'PICKUP', deliveryPlace: '', date: jstDate(3), startTime: '10:00', endTime: '11:00', shippingFeeYen: null, shippingPayer: 'UNDECIDED' } })).status === 409)
+  r = await farmA('/api/matches?id=' + m.id, { method: 'PATCH', body: { action: 'accept' } })
+  check('生産者が承認すると、マッチング成立（取引準備中）', r.status === 200 && r.data.match.status === 'ACCEPTED')
+  check('飲食店に「承認された」通知が届く', (await kinds(restaurant)).includes('PROPOSAL_ACCEPTED'))
+  chatA = (await farmA('/api/chat?matchId=' + m.id)).data
+  check('電話：マッチング成立後は、飲食店の番号も生産者に表示される', chatA.partnerPhone === '090-0000-0001', String(chatA.partnerPhone))
+  check('電話：取引に関係のない飲食店は、チャットも番号も見られない', (await restaurant2('/api/chat?matchId=' + m.id)).status === 404)
+  r = await farmA('/api/proposals', { body: { matchId: m.id, quantity: 6, unitPriceYen: 480, deliveryMethod: 'DELIVERY', deliveryPlace: '店の裏口（大阪市福島区）', date: jstDate(3), startTime: '09:00', endTime: '10:00', shippingFeeYen: 500, shippingPayer: 'RESTAURANT', note: '箱は返却不要です' } })
+  const prop = r.data?.proposal
+  check('マッチング成立後は、生産者から取引条件（数量・単価・送料・日時）を提案できる', r.status === 201 && prop.status === 'PENDING' && prop.shippingFeeYen === 500)
+  check('飲食店に「条件の提案が届いた」通知が届く', (await kinds(restaurant)).includes('TERMS_PROPOSED'))
+  check('返事待ちの提案があるうちは「この条件で合意」はできない', (await restaurant('/api/matches?id=' + m.id, { method: 'PATCH', body: { action: 'agree' } })).status === 409)
+  check('提案した本人は、自分の提案に返事できない', (await farmA('/api/proposals?id=' + prop.id, { method: 'PATCH', body: { action: 'accept' } })).status === 403)
+  check('関係のない利用者は、提案に返事できない', (await restaurant2('/api/proposals?id=' + prop.id, { method: 'PATCH', body: { action: 'accept' } })).status === 404)
+  r = await restaurant('/api/proposals?id=' + prop.id, { method: 'PATCH', body: { action: 'accept' } })
+  check('飲食店が承諾すると、その条件が取引条件になり、取引条件に合意', r.status === 200 && r.data.match.status === 'AGREED' && r.data.match.quantityMilli === 6000 && r.data.match.unitPriceYen === 480 && r.data.match.shippingFeeYen === 500 && r.data.match.shippingPayer === 'RESTAURANT')
+  check('条件に合意しても、在庫は減らない（在庫の確保をしない）', (await farmA('/api/listings')).data.listings.find((l) => l.id === L.id).quantityMilli === 8000)
+  check('合意の前にレビューは書けない', (await restaurant('/api/reviews', { body: { matchId: m.id, rating: 5, satisfaction: 5, politeness: 5, smoothness: 5 } })).status === 409)
+  r = await restaurant('/api/matches?id=' + m.id, { method: 'PATCH', body: { action: 'complete' } })
+  check('片方だけが完了を確認しても、取引完了にならない（相手の確認待ち）', r.status === 200 && r.data.match.status === 'AGREED' && r.data.match.completed.restaurant && !r.data.match.completed.producer)
+  check('生産者に「取引完了の確認依頼」通知が届く', (await kinds(farmA)).includes('COMPLETION_REQUESTED'))
+  check('同じ人が完了を二度押すことはできない', (await restaurant('/api/matches?id=' + m.id, { method: 'PATCH', body: { action: 'complete' } })).status === 409)
+  check('完了の確認が始まった後は、条件を変更できない', (await farmA('/api/proposals', { body: { matchId: m.id, quantity: 1, unitPriceYen: 1, deliveryMethod: 'PICKUP', deliveryPlace: '', date: jstDate(3), startTime: '10:00', endTime: '11:00', shippingFeeYen: null, shippingPayer: 'UNDECIDED' } })).status === 409)
+  r = await farmA('/api/matches?id=' + m.id, { method: 'PATCH', body: { action: 'complete' } })
+  check('双方が完了を確認すると、取引完了', r.status === 200 && r.data.match.status === 'COMPLETED')
+  check('双方に「相手が完了を確認」「レビュー依頼」の通知が届く', (await kinds(restaurant)).includes('COMPLETED') && (await kinds(restaurant)).includes('REVIEW_REQUESTED') && (await kinds(farmA)).includes('REVIEW_REQUESTED'))
+  check('評価は1〜5だけ', (await restaurant('/api/reviews', { body: { matchId: m.id, rating: 6, satisfaction: 5, politeness: 5, smoothness: 5 } })).status === 400)
+  check('関係のない飲食店は、この取引を評価できない', (await restaurant2('/api/reviews', { body: { matchId: m.id, rating: 1, satisfaction: 1, politeness: 1, smoothness: 1 } })).status === 404)
+  r = await restaurant('/api/reviews', { body: { matchId: m.id, rating: 5, satisfaction: 5, politeness: 4, smoothness: 5, comment: '丁寧に梱包していただきました' } })
+  check('取引完了後に、飲食店が生産者をレビューできる', r.status === 201)
+  check('1つの取引につき1人1回まで', (await restaurant('/api/reviews', { body: { matchId: m.id, rating: 1, satisfaction: 1, politeness: 1, smoothness: 1 } })).status === 409)
+  chatA = (await farmA('/api/chat?matchId=' + m.id)).data
+  check('自分が投稿する前は、相手のレビューは見えない（投稿済みであることだけ分かる）', chatA.reviews.partner === null && chatA.reviews.partnerSubmitted === true)
+  const producerIdA = (await db.query('select "producerId" from "MatchRequest" where id = $1', [m.id])).rows[0].producerId
+  check('片方だけの投稿では、生産者の評価（平均・件数）に出ない', (await restaurant('/api/reviews?producerId=' + producerIdA)).data.summary === null)
+  r = await farmA('/api/reviews', { body: { matchId: m.id, rating: 4, satisfaction: 4, politeness: 5, smoothness: 4, comment: '受け取りがスムーズでした' } })
+  check('生産者も飲食店をレビューできる', r.status === 201)
+  chatR = (await restaurant('/api/chat?matchId=' + m.id)).data
+  check('双方が投稿すると、お互いのレビューが見られる', chatR.reviews.partner?.rating === 4 && chatR.reviews.mine?.rating === 5)
+  const sum = (await restaurant2('/api/reviews?producerId=' + producerIdA)).data.summary
+  check('生産者のプロフィールに、平均評価と件数が出る', sum?.average === 5 && sum.count === 1, JSON.stringify(sum))
+  // 不適切なレビューの通報 → 運営者が非公開にする
+  const myReviews = (await farmA('/api/reviews?mine=1')).data
+  r = await farmA('/api/reports', { body: { targetType: 'REVIEW', targetId: myReviews.reviews[0].id, reason: 'INAPPROPRIATE', detail: 'E2E：レビューの通報' } })
+  check('自分が受けたレビューを通報できる', r.status === 201)
+  check('自分が受けていないレビューは通報できない', (await farmB('/api/reports', { body: { targetType: 'REVIEW', targetId: myReviews.reviews[0].id, reason: 'INAPPROPRIATE' } })).status === 404)
+  const rep = (await admin('/api/reports?status=OPEN')).data.reports.find((x) => x.targetType === 'REVIEW')
+  r = await admin('/api/reports', { method: 'PATCH', body: { id: rep.id, targetAction: 'suspend', status: 'RESOLVED' } })
+  check('運営者がレビューを非公開にすると、評価からも外れる', r.status === 200 && (await restaurant2('/api/reviews?producerId=' + producerIdA)).data.summary === null)
+  const nA = await notes(farmA)
+  r = await farmA('/api/notifications', { method: 'PATCH', body: { ids: [nA.notifications[0].id] } })
+  check('通知を1件ずつ既読にできる', r.status === 200 && r.data.unread === nA.unread - (nA.notifications[0].read ? 0 : 1))
+  r = await farmA('/api/notifications', { method: 'PATCH', body: { all: true } })
+  check('通知をすべて既読にでき、再ログイン後も DB に残る', r.data.unread === 0 && (await db.query('select count(*)::int as n from "Notification" n join "user" u on u.id = n."userId" where u.username = $1', ['farm_a'])).rows[0].n >= 5)
+}
+
+console.log('取引の流れ B：生産者から提案 → 承認前に相談 → 飲食店が承認 → 双方が合意 → 完了 → 相互レビュー・ブロック')
+{
+  const kinds = async (c) => (await c('/api/notifications')).data.notifications.map((n) => n.kind)
+  const partners = (await farmB('/api/partners')).data
+  check('生産者には、提案を受け付けている飲食店だけが出る（店名と市区町村だけ）', partners.restaurants.some((x) => x.name === 'テスト食堂') && !partners.restaurants.some((x) => x.name === 'テスト小料理店') && partners.restaurants.every((x) => !('phone' in x) && !('address' in x)))
+  check('飲食店は提案先の一覧を使えない', (await restaurant('/api/partners')).status === 403)
+  r = await farmB('/api/listings', { body: listingBody({ grade: 'REGULAR', irregularReason: null, quantity: 5, unitPriceYen: 520, pickupDate: jstDate(4) }) })
+  const LB = r.data.listing
+  const target = partners.restaurants.find((x) => x.name === 'テスト食堂')
+  const r1 = (await restaurant('/api/me')).data.user
+  const rid1 = (await db.query('select r.id from "Restaurant" r join "user" u on u.id = r."userId" where u.username = $1', ['restaurant1'])).rows[0].id
+  check('提案を受け付けていない飲食店には提案できない', (await farmB('/api/matches', { body: { restaurantId: rid1, listingId: LB.id, quantity: 2 } })).status === 404 && r1.acceptProposals === false)
+  check('他の生産者の出品では提案できない', (await farmB('/api/matches', { body: { restaurantId: target.id, listingId: (await farmA('/api/listings')).data.listings[0].id, quantity: 1 } })).status === 409)
+  r = await farmB('/api/matches', { body: { restaurantId: target.id, listingId: LB.id, quantity: 3, message: '今週採れたトマトです', deliveryMethod: 'PICKUP' } })
+  const mb = r.data?.matches?.[0]
+  check('生産者から、受け付けている飲食店に提案できる（相談中）', r.status === 201 && mb.initiator === 'PRODUCER' && mb.status === 'PENDING', JSON.stringify(r.data))
+  check('飲食店に「取引の提案が届いた」通知が届く', (await kinds(restaurant2)).includes('PROPOSAL_RECEIVED'))
+  check('同じ飲食店に、同じ出品で重複して提案できない', (await farmB('/api/matches', { body: { restaurantId: target.id, listingId: LB.id, quantity: 1 } })).status === 409)
+  r = await restaurant2('/api/chat', { body: { matchId: mb.id, body: '承認の前に、受け取りの時間を相談させてください。', clientId: 'flowB-pre-1' } })
+  check('飲食店も、承認の前にメッセージを送れる', r.status === 201)
+  const chatB = (await farmB('/api/chat?matchId=' + mb.id)).data
+  check('電話：表示しない設定の相手の番号は出ず、理由が出る', chatB.partnerPhone === null && chatB.phoneNote.includes('表示しない'))
+  check('生産者は、自分の提案を承認できない', (await farmB('/api/matches?id=' + mb.id, { method: 'PATCH', body: { action: 'accept' } })).status === 403)
+  r = await restaurant2('/api/matches?id=' + mb.id, { method: 'PATCH', body: { action: 'accept' } })
+  check('飲食店が承認すると、マッチング成立', r.status === 200 && r.data.match.status === 'ACCEPTED')
+  check('生産者に「承認された」通知が届く', (await kinds(farmB)).includes('PROPOSAL_ACCEPTED'))
+  r = await restaurant2('/api/matches?id=' + mb.id, { method: 'PATCH', body: { action: 'agree' } })
+  check('片方だけの合意では、取引条件の合意にならない', r.status === 200 && r.data.match.status === 'ACCEPTED' && r.data.match.agreed.restaurant && !r.data.match.agreed.producer)
+  r = await farmB('/api/matches?id=' + mb.id, { method: 'PATCH', body: { action: 'agree' } })
+  check('双方が「この条件で合意」すると、取引条件に合意', r.status === 200 && r.data.match.status === 'AGREED')
+  await farmB('/api/matches?id=' + mb.id, { method: 'PATCH', body: { action: 'complete' } })
+  r = await restaurant2('/api/matches?id=' + mb.id, { method: 'PATCH', body: { action: 'complete' } })
+  check('生産者が先に完了を確認しても、双方がそろうと取引完了', r.status === 200 && r.data.match.status === 'COMPLETED')
+  const rv1 = await restaurant2('/api/reviews', { body: { matchId: mb.id, rating: 4, satisfaction: 4, politeness: 4, smoothness: 3 } })
+  const rv2 = await farmB('/api/reviews', { body: { matchId: mb.id, rating: 5, satisfaction: 5, politeness: 5, smoothness: 5 } })
+  check('生産者からの取引でも、相互レビューができる', rv1.status === 201 && rv2.status === 201 && (await farmB('/api/chat?matchId=' + mb.id)).data.reviews.partner?.rating === 4)
+  // 迷惑な提案への対策：ブロック
+  r = await farmB('/api/listings', { body: listingBody({ grade: 'REGULAR', irregularReason: null, quantity: 4, unitPriceYen: 530, pickupDate: jstDate(4) }) })
+  r = await farmB('/api/matches', { body: { restaurantId: target.id, listingId: r.data.listing.id, quantity: 2 } })
+  const mb2 = r.data.matches[0]
+  r = await restaurant2('/api/matches?id=' + mb2.id, { method: 'PATCH', body: { action: 'block' } })
+  check('飲食店は、生産者からの提案を今後受け取らないようにできる（相談中の提案は辞退になる）', r.status === 200 && r.data.match.status === 'DECLINED')
+  check('ブロックした飲食店は、その生産者の提案先の一覧に出ない', !(await farmB('/api/partners')).data.restaurants.some((x) => x.id === target.id))
+  check('ブロックされた生産者は、その飲食店に提案できない', (await farmB('/api/matches', { body: { restaurantId: target.id, listingId: LB.id, quantity: 1 } })).status === 404)
+  check('ブロックは飲食店だけ・生産者からの提案だけ', (await farmB('/api/matches?id=' + mb2.id, { method: 'PATCH', body: { action: 'block' } })).status === 403)
+}
+
+console.log('電話番号の登録・変更（非公開）')
+{
+  r = await farmC('/api/me', { method: 'PATCH', body: { orgName: 'テストC農園', area: '能勢町', phone: '０９０ー１２３４ー５６７８', phoneShare: 'MATCHED' } })
+  check('電話番号を登録・変更できる（全角・ハイフンも可。表示はハイフン付き）', r.status === 200 && r.data.user.phone === '090-1234-5678' && r.data.user.phoneShare === 'MATCHED', JSON.stringify(r.data?.user?.phone))
+  const row = (await db.query('select phone, "phoneVerified" from "user" where username = $1', ['farm_c'])).rows[0]
+  check('保存は数字だけの形にそろえ、未確認（SMS などで確認していない）として区別する', row.phone === '09012345678' && row.phoneVerified === false)
+  check('形式の違う電話番号には変更できない', (await farmC('/api/me', { method: 'PATCH', body: { orgName: 'テストC農園', area: '能勢町', phone: '123' } })).status === 400)
+  check('自分の電話番号は本人にだけ返る（他人の /api/me には出ない）', (await farmB('/api/me')).data.user.phone !== '090-1234-5678')
 }
 
 console.log('総当たり・自動登録への対策')
