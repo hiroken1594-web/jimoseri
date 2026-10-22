@@ -7,6 +7,7 @@ import { requireActor } from '../_lib/auth.js'
 import { handle, HttpError, json, readBody } from '../_lib/http.js'
 import { chatWritable, loadMatchFor, partnerUserId, toMatchDto, type MatchRow } from '../_lib/matches.js'
 import { notify } from '../_lib/notify.js'
+import { fullAddress } from '../_lib/places.js'
 import { toProposalDto } from '../_lib/proposals.js'
 import { getPrisma } from '../_lib/prisma.js'
 import { completedAtMs, isPublished, toReviewDto } from '../_lib/reviews.js'
@@ -60,11 +61,15 @@ export const GET = handle(async (request) => {
   const theirs = viewer === 'ADMIN' ? null : reviews.find((r) => r.reviewerRole !== viewer)
   const doneAt = completedAtMs(fresh)
   const phone = viewer === 'ADMIN' ? { phone: null, note: '' } : await partnerPhone(fresh, viewer)
+  // 受渡場所の番地・建物名は、マッチング成立後の当事者（と運営者）にだけ見せる
+  const matched = fresh.status === 'ACCEPTED' || fresh.status === 'AGREED' || fresh.status === 'COMPLETED'
+  const place = matched && fresh.listingId ? await prisma.listing.findUnique({ where: { id: fresh.listingId }, select: { pickupLocation: true } }) : null
   const response: ChatResponse = {
     match: await toMatchDto(fresh, viewer),
     messages,
     partnerPhone: phone.phone,
     phoneNote: phone.note,
+    pickupAddress: place ? fullAddress(place.pickupLocation) : null,
     reviews: {
       mine: mine ? toReviewDto(mine) : null,
       partner: theirs && isPublished(theirs, Boolean(mine), doneAt) ? toReviewDto(theirs) : null,

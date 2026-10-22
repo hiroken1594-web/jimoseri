@@ -7,7 +7,7 @@ import { matchCreateSchema, matchRespondSchema, producerProposalSchema } from '.
 import { nextOccurrence, occurrenceOn } from '../../shared/schedule.js'
 import { jstDateString } from '../../shared/time.js'
 import type { Prisma } from '../../generated/prisma/client.js'
-import { requireActor, type Actor } from '../_lib/auth.js'
+import { demoFor, requireActor, type Actor } from '../_lib/auth.js'
 import { handle, HttpError, json, readBody } from '../_lib/http.js'
 import { scheduleOf } from '../_lib/listings.js'
 import { loadMatchFor, matchInclude, partnerUserId, responderOf, toMatchDto } from '../_lib/matches.js'
@@ -67,7 +67,7 @@ function deliveryData(body: { deliveryMethod?: 'PICKUP' | 'DELIVERY' | 'DISCUSS'
 /** 飲食店 → 生産者への依頼（仕入れ案の農家ごと、または出品の詳細から） */
 async function createFromRestaurant(actor: Actor, body: MatchCreateInput) {
   const prisma = getPrisma()
-  const demo = body.demoMode ?? false
+  const demo = demoFor(actor, body.demoMode)
   const nowMs = Date.now()
   if (new Set(body.lines.map((l) => l.listingId)).size !== body.lines.length) throw new HttpError(400, 'VALIDATION', '同じ出品が重複しています。')
   const rows = await prisma.listing.findMany({

@@ -1,4 +1,5 @@
 import { toMilli } from '../../shared/allocate.js'
+import { publicAddress } from '../_lib/places.js'
 import type { AdminOverview, QueueDetail, QueueItem, ReviewStatus } from '../../shared/dto.js'
 import { formatPhone } from '../../shared/phone.js'
 import { adminActionSchema } from '../../shared/schemas.js'
@@ -97,7 +98,7 @@ async function queueDetail(type: string, id: string): Promise<QueueDetail> {
       fields: [
         { label: '受渡拠点の名称', value: l.name },
         { label: '住所', value: addressText({ ...l, city: l.municipality, addressLine: l.address.replace(l.town ?? '', '') }) },
-        { label: '飲食店に表示する住所・目印', value: `${l.municipality} ${l.address}` },
+        { label: '飲食店に表示する住所（取引成立前）', value: `${l.municipality} ${publicAddress(l)}` },
         { label: '受取できる日時の目安', value: l.hours || '（未入力）' },
         { label: '補足', value: l.note || '（なし）' },
         { label: '地図への公開', value: l.showOnMap ? '公開を希望' : '公開しない' },

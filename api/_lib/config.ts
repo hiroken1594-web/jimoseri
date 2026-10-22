@@ -62,3 +62,9 @@ export function aiDailyLimit(): number {
   const n = Number(process.env.AI_DAILY_LIMIT)
   return Number.isInteger(n) && n > 0 ? n : 30
 }
+
+/** AI 抽出の、サービス全体の1日の上限回数（アカウントを大量に作られても、費用が膨らまないようにする） */
+export function aiGlobalDailyLimit(): number {
+  const n = Number(process.env.AI_GLOBAL_DAILY_LIMIT)
+  return Number.isInteger(n) && n > 0 ? n : 500
+}

@@ -1,11 +1,12 @@
 import { toMilli, type DemandSpec } from '../../shared/allocate.js'
+import { publicAddress } from '../_lib/places.js'
 import { withinRadius } from '../../shared/geo.js'
 import { allocateScheduled } from '../../shared/schedule.js'
 import { suggestRelaxations } from '../../shared/relax.js'
 import type { PlanResponse, PublicContact } from '../../shared/dto.js'
 import { demandSchema, planCheckSchema } from '../../shared/schemas.js'
 import { endOfJstDayMs, jstDateString, jstToMs } from '../../shared/time.js'
-import { requireActor } from '../_lib/auth.js'
+import { demoFor, requireActor } from '../_lib/auth.js'
 import { handle, HttpError, json, readBody } from '../_lib/http.js'
 import { computeFingerprint, listingInclude, planEligibleWhere, toCandidate } from '../_lib/listings.js'
 import { getPrisma } from '../_lib/prisma.js'
@@ -49,7 +50,7 @@ export const POST = handle(async (request) => {
   }
 
   // 承認済みの生産者・確認済みの場所の出品だけを読む
-  const demoMode = body.demoMode ?? false
+  const demoMode = demoFor(actor, body.demoMode)
   const rows = await prisma.listing.findMany({ where: planEligibleWhere(item.id, demoMode), include: listingInclude })
   const candidates = rows.map(toCandidate)
   // 検索地点と半径があれば、その内側の受渡場所だけを使う（位置が未登録の場所は対象外）
@@ -126,7 +127,7 @@ export const POST = handle(async (request) => {
       updatedAtMs: row.updatedAt.getTime(),
     }
     const loc = row.pickupLocation
-    locations[loc.id] = { name: loc.name, municipality: loc.municipality, address: loc.address, note: loc.note }
+    locations[loc.id] = { name: loc.name, municipality: loc.municipality, address: publicAddress(loc), note: loc.note }
     // 本人が公開を選んだ連絡先だけ
     const p = row.producer
     const contact: PublicContact = {}
@@ -168,10 +169,10 @@ export const POST = handle(async (request) => {
 
 // 表示中の仕入れ案が古くなっていないか確認する（在庫変更・公開停止・期限切れ・審査状態の変化を検知）。
 export const PUT = handle(async (request) => {
-  await requireActor(request, 'RESTAURANT')
+  const actor = await requireActor(request, 'RESTAURANT')
   const body = await readBody(request, planCheckSchema)
   const nowMs = Date.now()
-  const rows = await getPrisma().listing.findMany({ where: planEligibleWhere(body.itemId, body.demoMode ?? false), include: listingInclude })
+  const rows = await getPrisma().listing.findMany({ where: planEligibleWhere(body.itemId, demoFor(actor, body.demoMode)), include: listingInclude })
   const fresh = computeFingerprint(rows.map(toCandidate), nowMs) === body.fingerprint
   return json({ fresh, checkedAtMs: nowMs })
 })

@@ -2,7 +2,7 @@ import type { ExtractedFields, ExtractResponse } from '../../shared/dto.js'
 import { extractSchema } from '../../shared/schemas.js'
 import { jstDateString, jstToMs } from '../../shared/time.js'
 import { requireActor } from '../_lib/auth.js'
-import { aiDailyLimit } from '../_lib/config.js'
+import { aiDailyLimit, aiGlobalDailyLimit } from '../_lib/config.js'
 import { AiUnavailableError, extractConditions, isAiConfigured } from '../_lib/openai.js'
 import { handle, HttpError, json, readBody } from '../_lib/http.js'
 import { getPrisma } from '../_lib/prisma.js'
@@ -39,6 +39,15 @@ export const POST = handle(async (request) => {
       ok: false,
       reason: 'AI_UNAVAILABLE',
       message: '本日のAI読み取りの利用上限に達しました。項目を選んで続けられます。',
+    } satisfies ExtractResponse)
+  }
+
+  const total = await prisma.aiUsage.aggregate({ where: { day: today }, _sum: { count: true } })
+  if ((total._sum.count ?? 0) > aiGlobalDailyLimit()) {
+    return json({
+      ok: false,
+      reason: 'AI_UNAVAILABLE',
+      message: '本日のAI読み取りは、サービス全体の利用上限に達しました。項目を選んで続けられます。',
     } satisfies ExtractResponse)
   }
 

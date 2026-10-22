@@ -1,6 +1,6 @@
 import { recoveryReissueSchema, recoveryResetSchema } from '../../shared/schemas.js'
 import { checkPassword, issueRecoveryCode, setPassword, verifyRecoveryCode } from '../_lib/accounts.js'
-import { requireActor } from '../_lib/auth.js'
+import { forbidDemo, requireActor } from '../_lib/auth.js'
 import { handle, HttpError, json, readBody } from '../_lib/http.js'
 import { clientIp, requireAllowed } from '../_lib/throttle.js'
 
@@ -25,6 +25,7 @@ export const POST = handle(async (request) => {
 // リカバリーコードの再発行（ログイン中・現在のパスワードの確認が必要）。それまでのコードは無効になる。
 export const PUT = handle(async (request) => {
   const actor = await requireActor(request)
+  forbidDemo(actor)
   const body = await readBody(request, recoveryReissueSchema)
   await requireAllowed('reissue-user', actor.user.id, 5, 15 * 60)
   if (!(await checkPassword(actor.user.id, body.password))) {

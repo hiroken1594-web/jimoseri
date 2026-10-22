@@ -2,7 +2,7 @@
 // 通報があっただけで自動的に停止はせず、運営者が内容を確認して判断する。
 import type { ReportItem } from '../../shared/dto.js'
 import { reportCreateSchema, reportUpdateSchema } from '../../shared/schemas.js'
-import { requireActor } from '../_lib/auth.js'
+import { forbidDemo, requireActor } from '../_lib/auth.js'
 import { handle, HttpError, json, readBody } from '../_lib/http.js'
 import { getPrisma } from '../_lib/prisma.js'
 import { requireAllowed } from '../_lib/throttle.js'
@@ -12,6 +12,7 @@ const STATUS_LABEL = { OPEN: '未対応', IN_REVIEW: '確認中', RESOLVED: '対
 // 通報を送る（ログイン中の生産者・飲食店）
 export const POST = handle(async (request) => {
   const actor = await requireActor(request)
+  forbidDemo(actor)
   if (actor.user.role === 'ADMIN') throw new HttpError(403, 'FORBIDDEN', '運営者のアカウントからは通報できません。')
   const body = await readBody(request, reportCreateSchema)
   const prisma = getPrisma()

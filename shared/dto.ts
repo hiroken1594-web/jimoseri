@@ -26,6 +26,8 @@ export interface ProducerProfile {
 export interface SessionUser {
   id: string
   role: Role
+  /** デモ用のアカウント（常にデモモードで動く。パスワードやプロフィールは変更できない） */
+  isDemoAccount: boolean
   /** ログイン用のユーザー名（本人と運営者にだけ見える。他の利用者には公開しない） */
   username: string
   /** 店舗名・農園名 */
@@ -482,6 +484,8 @@ export interface ChatResponse {
   partnerPhone: string | null
   /** 電話番号を見せられない理由 */
   phoneNote: string
+  /** 受渡場所（出品の受渡拠点）の住所。番地・建物名まで。マッチング成立後の当事者にだけ返す */
+  pickupAddress: string | null
   /** レビュー：自分の投稿と、公開された相手の投稿 */
   reviews: { mine: ReviewDto | null; partner: ReviewDto | null; partnerSubmitted: boolean }
 }

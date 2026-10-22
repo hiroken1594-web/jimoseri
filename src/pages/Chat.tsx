@@ -121,7 +121,7 @@ function TradeGuide({ match }: { match: MatchDto }) {
 }
 
 /** いまの取引条件（合意の状態つき） */
-function TermsCard({ m }: { m: MatchDto }) {
+function TermsCard({ m, pickupAddress }: { m: MatchDto; pickupAddress: string | null }) {
   const money = moneyLines({ ...m, quantityMilli: m.quantityMilli }, m.unit)
   const me = m.viewer === 'PRODUCER' ? 'producer' : 'restaurant'
   const partner = me === 'producer' ? 'restaurant' : 'producer'
@@ -141,7 +141,10 @@ function TermsCard({ m }: { m: MatchDto }) {
         <dt>受渡方法</dt>
         <dd>{DELIVERY_LABEL[m.deliveryMethod]}</dd>
         <dt>受渡場所</dt>
-        <dd>{m.deliveryPlace || '未定'}</dd>
+        <dd>
+          {m.deliveryPlace || '未定'}
+          {m.deliveryMethod === 'PICKUP' && (pickupAddress ? <span className="field-hint">住所：{pickupAddress}</span> : <span className="field-hint">番地は、マッチング成立（承認）後に表示されます。</span>)}
+        </dd>
         <dt>希望日時</dt>
         <dd>{formatWindow(m.pickupStartMs, m.pickupEndMs)}</dd>
         <dt>送料</dt>
@@ -628,7 +631,7 @@ export function Chat() {
         </p>
       )}
 
-      <TermsCard m={m} />
+      <TermsCard m={m} pickupAddress={data.pickupAddress} />
       {party && open && <TradeGuide match={m} />}
       {m.viewer === 'ADMIN' && <Notice kind="info">{<p>運営者として閲覧しています（メッセージは送れません）。</p>}</Notice>}
       {actionError && <Notice kind="error">{<p>{actionError}</p>}</Notice>}

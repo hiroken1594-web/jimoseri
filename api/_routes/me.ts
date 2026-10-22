@@ -1,7 +1,7 @@
 import { profileSchema, usernameChangeSchema } from '../../shared/schemas.js'
 import { formatZip, normalizeZip } from '../../shared/geo.js'
 import { checkPassword, placeholderEmail } from '../_lib/accounts.js'
-import { getActor, requireActor } from '../_lib/auth.js'
+import { forbidDemo, getActor, requireActor } from '../_lib/auth.js'
 import { handle, HttpError, json, readBody } from '../_lib/http.js'
 import { requireAllowed } from '../_lib/throttle.js'
 import { getPrisma } from '../_lib/prisma.js'
@@ -16,6 +16,7 @@ export const GET = handle(async (request) => {
 // 役割・審査の状態・メールアドレスはここでは変更できない。
 export const PATCH = handle(async (request) => {
   const actor = await requireActor(request)
+  forbidDemo(actor)
   const body = await readBody(request, profileSchema)
   const prisma = getPrisma()
 
@@ -76,6 +77,7 @@ export const PATCH = handle(async (request) => {
 // 出品・履歴・審査の状態などは利用者の ID にひも付いているため、変更しても引き継がれる。
 export const PUT = handle(async (request) => {
   const actor = await requireActor(request)
+  forbidDemo(actor)
   const body = await readBody(request, usernameChangeSchema)
   // 使われている名前を次々に調べられないよう、回数を制限する
   await requireAllowed('rename-user', actor.user.id, 10, 60 * 60)

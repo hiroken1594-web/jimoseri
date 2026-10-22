@@ -515,6 +515,69 @@ console.log('デモデータ：大阪府のトマト')
   const p = (await restaurant('/api/plan', { body: { ...demand({ quantity: 60, date: jstDate(5), prefecture: '大阪府', municipality: '大阪市北区', allowIrregular: true }), demoMode: true } })).data
   check('大阪市北区のトマト60kgで、複数の農家（2〜3軒）を組み合わせた仕入れ案ができる', (p.result.best?.plan.producerCount ?? 0) >= 2, JSON.stringify({ count: p.result.best?.plan.producerCount, total: p.result.best?.plan.totalMilli, status: p.result.best?.status }))
 }
+
+console.log('セキュリティ：受渡場所の番地の公開範囲・デモ用アカウントの制限・使わない認証 API')
+{
+  // 受渡場所の番地・建物名は、マッチング成立後の取引相手にだけ見せる
+  r = await farmB('/api/locations', { body: { ...LOC_ADDR, addressLine: '9-9-9', building: 'ひみつ倉庫', name: '番地テストの軒先', municipality: '豊能郡能勢町', note: '', latitude: 34.97, longitude: 135.41, showOnMap: true } })
+  const secLoc = r.data?.location
+  check('番地テスト用の受渡拠点を登録', r.status === 201)
+  await admin('/api/admin', { body: { target: 'location', id: secLoc.id, action: 'approve' } })
+  r = await farmB('/api/listings', { body: listingBody({ pickupLocationId: secLoc.id, quantity: 3 }) })
+  const secListing = r.data?.listing
+  check('番地テスト用の出品を登録', r.status === 201)
+  const secret = (x) => JSON.stringify(x).includes('9-9-9') || JSON.stringify(x).includes('ひみつ倉庫')
+  const detail = (await restaurant2('/api/market?id=' + secListing.id)).data
+  check('出品の詳細では、受渡場所の住所は町域まで（番地・建物名は出さない）', detail.listing.location.address.startsWith('宿野') && !secret(detail))
+  const search = (await restaurant2('/api/market', { body: { prefecture: '大阪府', center: null, radiusKm: null } })).data
+  check('地図・一覧の検索でも、番地・建物名は出さない', search.locations.some((l) => l.id === secLoc.id) && !secret(search))
+  check('他の生産者にも、番地・建物名は出さない', !secret((await farmC('/api/master')).data))
+  check('登録した本人には、番地・建物名まで見える', secret((await farmB('/api/locations')).data))
+  r = await restaurant2('/api/matches', { body: { lines: [{ listingId: secListing.id, quantity: 1, pickupStartMs: detail.listing.pickupStartMs, pickupEndMs: detail.listing.pickupEndMs }], message: '番地の公開範囲のテスト' } })
+  const secMatch = r.data?.matches?.[0]
+  check('飲食店が依頼を送れる', r.status === 201)
+  let chat = (await restaurant2('/api/chat?matchId=' + secMatch.id)).data
+  check('承認の前は、チャットでも番地・建物名は出さない', chat.pickupAddress === null && !secret(chat))
+  await farmB('/api/matches?id=' + secMatch.id, { method: 'PATCH', body: { action: 'accept' } })
+  chat = (await restaurant2('/api/chat?matchId=' + secMatch.id)).data
+  check('マッチング成立後は、取引相手に番地・建物名まで見える', chat.pickupAddress?.includes('9-9-9') && chat.pickupAddress.includes('ひみつ倉庫'), chat.pickupAddress)
+  check('取引に関係のない飲食店は、そのチャットを見られない', (await restaurant('/api/chat?matchId=' + secMatch.id)).status === 404)
+  check('取引に関係のない生産者は、メッセージを送れない', (await farmC('/api/chat', { body: { matchId: secMatch.id, body: 'なりすまし', clientId: 'e2e-spoof-1' } })).status === 404)
+  check('取引に関係のない生産者は、取引を完了にできない', (await farmC('/api/matches?id=' + secMatch.id, { method: 'PATCH', body: { action: 'complete' } })).status === 404)
+
+  // デモ用のアカウント：常にデモデータだけ。アカウントの変更はできない
+  const shop = client()
+  check('デモの飲食店（demo_shop）でログインできる', (await shop.login('demo_shop', demoPassword)).status === 200)
+  const shopMe = (await shop('/api/me')).data.user
+  check('デモの飲食店には、デモ用アカウントの目印が付く', shopMe.isDemoAccount === true)
+  const normal = (await shop('/api/market', { body: { prefecture: '大阪府', center: null, radiusKm: null, demo: false } })).data
+  check('デモ用アカウントは、デモモードを外しても実際の出品を見られない', normal.locations.length > 0 && normal.locations.every((l) => l.isDemo) && !normal.locations.some((l) => l.id === secLoc.id))
+  check('デモ用アカウントは、実際の出品の詳細を見られない', (await shop('/api/market?id=' + secListing.id)).status === 404)
+  check('デモ用アカウントは、実際の生産者に依頼を送れない', (await shop('/api/matches', { body: { lines: [{ listingId: secListing.id, quantity: 1, pickupStartMs: detail.listing.pickupStartMs, pickupEndMs: detail.listing.pickupEndMs }], demoMode: false } })).status === 409)
+  const realPlan = (await shop('/api/plan', { body: { ...demand({ quantity: 3, municipality: null }), demoMode: false } })).data
+  check('デモ用アカウントの仕入れ案は、デモデータだけを使う', (realPlan.result.best?.plan.lines ?? []).every((l) => !l.listingId || l.listingId !== secListing.id) && JSON.stringify(realPlan).includes('"demoMode":true'))
+  check('デモ用アカウントは、プロフィールを変更できない', (await shop('/api/me', { method: 'PATCH', body: { ...ADDR, orgName: '書き換え' } })).status === 403)
+  check('デモ用アカウントは、パスワードを変更できない', (await shop('/api/auth/change-password', { body: { currentPassword: demoPassword, newPassword: 'changed-password-123' } })).status === 403)
+  check('デモ用アカウントは、退会できない', (await shop('/api/auth/delete-user', { body: { password: demoPassword } })).status === 403)
+  check('デモ用アカウントは、通報できない', (await shop('/api/reports', { body: { targetType: 'LISTING', targetId: secListing.id, reason: 'OTHER', detail: 'x' } })).status === 403)
+  check('デモ用アカウントは、リカバリーコードを再発行できない', (await shop('/api/recovery', { method: 'PUT', body: {} })).status === 403)
+  check('パスワードは変わっていない（もう一度ログインできる）', (await client().login('demo_shop', demoPassword)).status === 200)
+
+  // 使わない認証 API は、外からは呼べない
+  check('認証 API：プロフィールの直接変更（update-user）は使えない', (await restaurant('/api/auth/update-user', { body: { name: 'x', signupRole: 'ADMIN' } })).status === 404)
+  check('認証 API：ユーザー名の存在確認（is-username-available）は使えない', (await anon('/api/auth/is-username-available', { body: { username: 'restaurant1' } })).status === 404)
+  check('認証 API：メールでの登録は使えない', (await anon('/api/auth/sign-up/email', { body: { email: 'x@example.invalid', password: 'x'.repeat(12), name: 'x', username: 'x_evil_1', signupRole: 'ADMIN' } })).status === 404)
+  check('自分で運営者になることはできない', (await restaurant('/api/me')).data.user.role === 'RESTAURANT' && (await restaurant('/api/admin?view=count')).status === 403)
+
+  // ログアウト後は保護された情報を見られない
+  const temp = client()
+  await temp.login('restaurant2')
+  await temp('/api/auth/sign-out', { body: {} })
+  check('ログアウト後は、やりとり・通知・チャットを見られない', (await temp('/api/matches')).status === 401 && (await temp('/api/notifications')).status === 401 && (await temp('/api/chat?matchId=' + secMatch.id)).status === 401)
+  for (const [name, path] of [['やりとり', '/api/matches'], ['チャット', '/api/chat?matchId=x'], ['通知', '/api/notifications'], ['レビュー', '/api/reviews?producerId=x'], ['検索', '/api/market?id=x'], ['提案先', '/api/partners'], ['受渡拠点', '/api/locations']]) {
+    check(`未ログインでは${name}を使えない`, (await anon(path)).status === 401)
+  }
+}
 execSync('npx tsx scripts/demo-data.ts remove', { stdio: 'ignore' })
 const leftovers = await db.query('select (select count(*)::int from "Listing" where "isDemo") as l, (select count(*)::int from "PickupLocation" where "isDemo") as p, (select count(*)::int from "Producer" where "isDemo") as pr')
 check('デモデータを一括削除できる（出品・場所・アカウント）', leftovers.rows[0].l === 0 && leftovers.rows[0].p === 0 && leftovers.rows[0].pr === 0, JSON.stringify(leftovers.rows[0]))

@@ -2,7 +2,7 @@
 // パスワードは scrypt でハッシュ化して保存され、セッションは HttpOnly Cookie で管理される。
 import { betterAuth } from 'better-auth'
 import { prismaAdapter } from 'better-auth/adapters/prisma'
-import { APIError, createAuthMiddleware } from 'better-auth/api'
+import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api'
 import { username } from 'better-auth/plugins'
 import { USERNAME_MAX, USERNAME_MIN, isValidUsername } from '../../shared/limits.js'
 import { baseUrl } from './config.js'
@@ -22,6 +22,10 @@ const BLOCKED_PATHS = new Set([
   '/reset-password',
   '/send-verification-email',
   '/verify-email',
+  // プロフィールの変更は /api/me（入力の検証つき）だけを入口にする
+  '/update-user',
+  // ユーザー名が登録済みかを、外から1件ずつ調べられないようにする
+  '/is-username-available',
 ])
 
 function createAuth() {
@@ -107,6 +111,16 @@ function createAuth() {
         // ctx.request があるのは、外から HTTP で呼ばれた場合だけ（サーバー内部からの呼び出しでは無い）
         if (ctx.request && BLOCKED_PATHS.has(ctx.path)) {
           throw new APIError('NOT_FOUND', { message: 'この操作は利用できません。' })
+        }
+        // デモ用のアカウント（お試し用に共有）は、パスワードの変更・退会をできない
+        if (ctx.request && (ctx.path === '/change-password' || ctx.path === '/delete-user')) {
+          const session = await getSessionFromCtx(ctx).catch(() => null)
+          if (session) {
+            const demo = await getPrisma().user.findUnique({ where: { id: session.user.id }, select: { producer: { select: { isDemo: true } }, restaurant: { select: { isDemo: true } } } })
+            if (demo?.producer?.isDemo || demo?.restaurant?.isDemo) {
+              throw new APIError('FORBIDDEN', { message: 'デモ用のアカウントでは、この操作はできません（お試し用に共有しているため）。' })
+            }
+          }
         }
         if (ctx.path === '/sign-in/username') {
           // 同じユーザー名へのログイン試行を制限する（パスワードの総当たり対策）

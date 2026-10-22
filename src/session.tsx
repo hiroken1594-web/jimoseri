@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { setDemoMode } from './lib/demoMode.js'
 import type { MasterData, SessionUser } from '../shared/dto.js'
 import { api, errorMessage } from './api.js'
 import { authClient } from './auth-client.js'
@@ -36,6 +37,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const [m, me] = await Promise.all([api<MasterData>('/api/master'), api<{ user: SessionUser | null }>('/api/me')])
     setMaster(m)
     setUser(me.user)
+    if (me.user?.isDemoAccount) setDemoMode(true)
     return me.user
   }, [])
 

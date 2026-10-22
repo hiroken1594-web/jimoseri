@@ -131,7 +131,7 @@ function LocationEditor({ initial, editingId, onDone, onCancel }: { initial: Dra
         onChange={(v) => set('address', v)}
         errors={errors}
         addressLineLabel="番地・目印"
-        addressLineHint="飲食店に表示されます。自宅の場合は、番地まで書かず目印にとどめるなど、公開してよい範囲で入力してください。"
+        addressLineHint="番地・建物名は、マッチングが成立した取引相手にだけ表示されます（検索画面に出るのは町域まで）。"
       />
 
       <div className="field">
@@ -186,7 +186,7 @@ function LocationEditor({ initial, editingId, onDone, onCancel }: { initial: Dra
           <span>
             <strong>飲食店向けの地図に表示する</strong>
             <small className="block">
-              オンにすると、運営者の確認後、ログインした飲食店が見る地図にピンと名称・住所（上で入力した範囲）が表示され、距離での検索の対象になります。オフの場合、位置は誰にも公開されません。
+              オンにすると、運営者の確認後、ログインした飲食店が見る地図にピン（指定した位置）と名称・住所（町域まで）が表示され、距離での検索の対象になります。オフの場合、位置は誰にも公開されません。
             </small>
           </span>
         </label>

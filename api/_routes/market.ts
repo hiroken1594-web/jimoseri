@@ -4,11 +4,12 @@
 // 地図上で近いことを理由に、仕入れ案の受渡条件が成立するとは判定しない。
 // 検索の中心（現在地など）は計算に使うだけで、DB にもログにも残さない。
 import type { ListingDetail, MarketDiagnostics, MarketLocation, MarketSearchResponse, MarketStageKey, MarketWider, PublicContact } from '../../shared/dto.js'
+import { publicAddress } from '../_lib/places.js'
 import { distanceKm, RADIUS_OPTIONS, sameMunicipality, withinRadius } from '../../shared/geo.js'
 import { availableOn } from '../../shared/schedule.js'
 import { marketSearchSchema, type MarketSearchInput } from '../../shared/schemas.js'
 import type { Prisma } from '../../generated/prisma/client.js'
-import { requireActor } from '../_lib/auth.js'
+import { demoFor, requireActor } from '../_lib/auth.js'
 import { handle, HttpError, json, readBody } from '../_lib/http.js'
 import { stillAvailable, toMarketListing, windowOf } from '../_lib/market-listing.js'
 import { getPrisma } from '../_lib/prisma.js'
@@ -109,9 +110,9 @@ export const POST = handle(async (request) => {
     throw new HttpError(400, 'VALIDATION', '距離で絞り込むには、検索の中心（現在地・地図・地名）を指定してください。')
   }
   const nowMs = Date.now()
-  const demo = body.demo ?? false
+  const demo = demoFor(actor, body.demo)
   const all = await loadRows(nowMs, demo)
-  const { stages, rows } = runStages(all, body, nowMs)
+  const { stages, rows } = runStages(all, { ...body, demo }, nowMs)
   const favorites = await favoriteIds(actor.restaurantId!)
 
   const byLocation = new Map<string, MarketLocation>()
@@ -124,7 +125,7 @@ export const POST = handle(async (request) => {
         id: loc.id,
         name: loc.name,
         municipality: loc.municipality,
-        address: loc.address,
+        address: publicAddress(loc),
         note: loc.note,
         hours: loc.hours,
         latitude: p.lat,
@@ -163,7 +164,7 @@ export const GET = handle(async (request) => {
   const id = url.searchParams.get('id')
   if (!id) throw new HttpError(400, 'BAD_REQUEST', '出品が指定されていません。')
   // デモの出品は、デモモードから開いた場合（demo=1）だけ表示する
-  const demo = url.searchParams.get('demo') === '1'
+  const demo = demoFor(actor, url.searchParams.get('demo') === '1')
   const nowMs = Date.now()
   // 詳細は、地図に出していない拠点の出品（仕入れ案には出るもの）も見られるようにする。位置は公開を許可した場合だけ返す。
   const row = await getPrisma().listing.findFirst({
@@ -193,7 +194,7 @@ export const GET = handle(async (request) => {
       id: loc.id,
       name: loc.name,
       municipality: loc.municipality,
-      address: loc.address,
+      address: publicAddress(loc),
       note: loc.note,
       hours: loc.hours,
       latitude: loc.showOnMap ? loc.latitude : null,

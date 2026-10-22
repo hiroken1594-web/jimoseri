@@ -9,6 +9,16 @@ export interface Actor {
   user: SessionUser
   producerId: string | null
   restaurantId: string | null
+  /** デモ用のアカウント（お試し用に公開する）。デモデータの中だけで操作でき、実際の利用者には届かない */
+  isDemo: boolean
+}
+
+/** デモ用のアカウントは、画面の設定にかかわらず、常にデモデータだけを使う */
+export const demoFor = (actor: Actor, requested: boolean | undefined): boolean => actor.isDemo || (requested ?? false)
+
+/** デモ用のアカウントでは、アカウントそのものの変更（パスワード・プロフィール・退会など）をさせない */
+export function forbidDemo(actor: Actor): void {
+  if (actor.isDemo) throw new HttpError(403, 'DEMO_ACCOUNT', 'デモ用のアカウントでは、この操作はできません（お試し用に共有しているため）。')
 }
 
 const isRole = (value: unknown): value is Role => value === 'RESTAURANT' || value === 'PRODUCER' || value === 'ADMIN'
@@ -65,12 +75,14 @@ export async function getActor(request: Request): Promise<Actor | null> {
       },
       phone: user.phone ? formatPhone(user.phone) : null,
       phoneShare: user.phoneShare,
+      isDemoAccount: Boolean(p?.isDemo || user.restaurant?.isDemo),
       acceptProposals: user.restaurant?.acceptProposals ?? false,
       storePosition:
         user.restaurant?.latitude != null && user.restaurant.longitude != null ? { lat: user.restaurant.latitude, lng: user.restaurant.longitude } : null,
     },
     producerId: p?.id ?? null,
     restaurantId: user.restaurant?.id ?? null,
+    isDemo: Boolean(p?.isDemo || user.restaurant?.isDemo),
   }
 }
 

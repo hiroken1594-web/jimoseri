@@ -126,7 +126,7 @@ function NewLocation({ onCreated, onCancel }: { onCreated: (location: LocationDt
         onChange={setAddress}
         errors={{ ...errors, city: errors.city ?? errors.municipality, addressLine: errors.addressLine ?? errors.address }}
         addressLineLabel="番地・目印"
-        addressLineHint="飲食店に表示されます。自宅の場合は、公開してよい範囲で入力してください。"
+        addressLineHint="番地・建物名は、マッチングが成立した取引相手にだけ表示されます（検索画面に出るのは町域まで）。"
       />
       <p className="field-hint">地図での位置は、登録後に「受渡拠点」の画面でピンを置いて確かめられます（位置を登録すると、飲食店の地図にも表示できます）。</p>
       <Field label="補足" error={errors.note} hint="例：駐車場あり、到着したら電話してください">
