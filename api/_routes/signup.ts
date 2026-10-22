@@ -21,6 +21,8 @@ export const POST = handle(async (request) => {
   // 人には見えない入力欄。埋まっていれば自動送信とみなす。
   if (body.website) throw new HttpError(400, 'BAD_REQUEST', '登録できませんでした。')
 
+  // 招待コードの総当たりを防ぐため、照合の前にも接続元ごとの回数を制限する
+  if (mode === 'invite') await requireAllowed('signup-invite-ip', clientIp(request), 20, 60 * 60)
   if (mode === 'invite' && !sameText(body.inviteCode ?? '', process.env.SIGNUP_INVITE_CODE ?? '')) {
     throw new HttpError(403, 'BAD_INVITE', '招待コードが正しくありません。', { inviteCode: '招待コードが正しくありません。' })
   }
