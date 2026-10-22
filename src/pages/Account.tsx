@@ -459,11 +459,19 @@ export function Account() {
   return (
     <>
       <PageTitle icon={UserRound}>マイページ</PageTitle>
-      <ProfileSection user={user} />
+      {user.isDemoAccount ? (
+        <p className="info-banner">デモ用のアカウントです。お試し用に共有しているため、プロフィール・ユーザー名・パスワードの変更と退会はできません。</p>
+      ) : (
+        <ProfileSection user={user} />
+      )}
       {user.role !== 'ADMIN' && <MyReviews />}
-      <UsernameSection user={user} />
-      <PasswordSection />
-      <RecoverySection />
+      {!user.isDemoAccount && (
+        <>
+          <UsernameSection user={user} />
+          <PasswordSection />
+          <RecoverySection />
+        </>
+      )}
       <button
         className="btn btn-large btn-block"
         onClick={async () => {
@@ -474,7 +482,7 @@ export function Account() {
       >
         ログアウト
       </button>
-      <DeleteSection user={user} />
+      {!user.isDemoAccount && <DeleteSection user={user} />}
     </>
   )
 }

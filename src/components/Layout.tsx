@@ -69,9 +69,9 @@ export function Layout({ children, wide }: { children: ReactNode; wide?: boolean
   // 住所に不足がある（以前に登録した方など）ときは、マイページでの入力をお願いする（ログインは止めない）
   const ad = user.address
   const addressIncomplete = !ad.postalCode || !ad.prefecture || !ad.city || !ad.town || !ad.addressLine || ad.building === null
-  const needsAddress = user.role !== 'ADMIN' && addressIncomplete && pathname !== '/account'
+  const needsAddress = user.role !== 'ADMIN' && !user.isDemoAccount && addressIncomplete && pathname !== '/account'
   // 電話番号が未登録の方にも、マイページでの登録をお願いする（ログインは止めない）
-  const needsPhone = user.role !== 'ADMIN' && !user.phone && pathname !== '/account'
+  const needsPhone = user.role !== 'ADMIN' && !user.isDemoAccount && !user.phone && pathname !== '/account'
   const RoleIcon = ROLE_ICON[user.role]
   return (
     <div className={`app has-tabbar ${ROLE_CLASS[user.role]}`}>
