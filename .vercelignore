@@ -1,0 +1,12 @@
+# Vercel へアップロードしないもの（Git に含めていない資料・秘密情報・ローカル専用のファイル）
+.env
+.env.*
+!.env.example
+presentation/
+demo-screenshots/
+UIUX_DESIGN_REFERENCE.md
+.agents/
+.claude/
+skills-lock.json
+dist/
+generated/
